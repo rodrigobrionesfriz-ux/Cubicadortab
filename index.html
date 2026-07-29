@@ -1,1 +1,717 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cubicador de Melamina</title>
+<meta name="description" content="Optimizador de cortes de melamina con veta, espesor de sierra, tapacantos y secuencia de corte.">
+<style>
+:root{
+  --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2b3140;
+  --txt:#e8ecf3; --muted:#9aa4b8; --acc:#4da3ff; --ok:#38c172; --warn:#f0a020; --bad:#e5484d; --edge:#ff7ab8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{padding:16px 22px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+h1{font-size:19px;margin:0;letter-spacing:.2px}
+header small{color:var(--muted)}
+#status{margin-left:auto;font-size:12px;padding:4px 11px;border-radius:20px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);white-space:nowrap}
+#status.on{border-color:var(--ok);color:#a9e9c1}
+#status.off{border-color:var(--warn);color:#f3d19a}
+.wrap{display:grid;grid-template-columns:470px 1fr;gap:18px;padding:18px;align-items:start}
+@media(max-width:1080px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.card h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+input,select,button{font:inherit;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+input[type=color]{padding:2px;height:34px}
+input[type=file]{padding:5px;font-size:12px}
+input[type=checkbox]{width:auto;vertical-align:-2px;margin-right:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.row{margin-bottom:10px}
+button{cursor:pointer;background:var(--panel2);transition:.15s}
+button:hover{border-color:var(--acc)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--acc);border-color:var(--acc);color:#04101f;font-weight:600}
+button.ghost{width:auto;padding:5px 10px;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{color:var(--muted);font-weight:500;text-align:left;padding:4px 2px;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px}
+td{padding:2px 2px}
+td input,td select{padding:5px 4px;font-size:12.5px}
+.del{color:var(--bad);background:none;border:none;width:24px;padding:2px;font-size:16px;line-height:1}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-size:20px;font-weight:600}
+.stat span{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:16px}
+.sheet h3{margin:0 0 4px;font-size:15px}
+.sheet .meta{color:var(--muted);font-size:12px;margin-bottom:10px}
+svg{width:100%;height:auto;display:block;background:#0b0d11;border-radius:8px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
+.bar button{width:auto;padding:8px 14px}
+.bar label{margin:0;display:inline-flex;align-items:center;color:var(--txt);font-size:13px}
+.alert{background:#3a1f22;border:1px solid var(--bad);color:#ffc9cb;padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:13px}
+.note{background:#1d2a1f;border:1px solid var(--ok);color:#c8f0d4;padding:8px 11px;border-radius:8px;margin-bottom:12px;font-size:12.5px}
+.empty{color:var(--muted);text-align:center;padding:50px 10px}
+details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px}
+.lst{margin-top:8px;font-size:12px}
+.lst td,.lst th{border-bottom:1px solid var(--line);padding:4px 6px}
+.hint{font-size:11px;color:var(--muted);margin-top:6px}
+@media print{
+  body{background:#fff;color:#000}
+  .wrap{grid-template-columns:1fr;padding:0}
+  aside,.bar,header small,#status{display:none}
+  .sheet{page-break-after:always;border:none;background:#fff}
+  svg{background:#fff}
+  .stat{background:#fff;border:1px solid #ccc}
+  .stat span,.sheet .meta{color:#555}
+  details>summary{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Cubicador de Melamina</h1>
+  <small>Cortes optimizados · veta · kerf · tapacantos · secuencia de sierra · mm</small>
+  <span id="status">Conectando…</span>
+</header>
 
+<div class="wrap">
+<aside>
+  <div class="card">
+    <h2>Proyecto</h2>
+    <div class="grid2">
+      <div><label>Nombre</label><input id="pname" value="Mueble sin título"></div>
+      <div><label>Guardados</label><select id="plist"><option value="">—</option></select></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid4">
+      <button class="ghost" id="save" style="width:100%">Guardar</button>
+      <button class="ghost" id="load" style="width:100%">Abrir</button>
+      <button class="ghost" id="delp" style="width:100%">Borrar</button>
+      <button class="ghost" id="exp" style="width:100%">Exportar</button>
+    </div>
+    <div class="row" style="margin-top:8px"><label>Importar proyecto (.json)</label><input id="imp" type="file" accept=".json,application/json"></div>
+    <div class="hint" id="phint"></div>
+  </div>
+
+  <div class="card">
+    <h2>Tablero</h2>
+    <div class="grid2">
+      <div><label>Largo (X)</label><input id="bw" type="number" value="2440" min="100"></div>
+      <div><label>Ancho (Y)</label><input id="bh" type="number" value="1220" min="100"></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid3">
+      <div><label>Sierra (kerf)</label><input id="kerf" type="number" value="4" min="0" step="0.1"></div>
+      <div><label>Refile borde</label><input id="trim" type="number" value="10" min="0"></div>
+      <div><label>Espesor</label><input id="thk" type="number" value="18" min="1"></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid3">
+      <div><label>Veta del tablero</label>
+        <select id="bgrain"><option value="x">A lo largo (X)</option><option value="y">A lo ancho (Y)</option></select></div>
+      <div><label>Rotar sin veta</label>
+        <select id="rot"><option value="1">Sí</option><option value="0">No</option></select></div>
+      <div><label>Precio tablero</label><input id="price" type="number" value="0" min="0"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Tapacanto</h2>
+    <div class="grid3">
+      <div><label>Espesor (mm)</label><input id="ethk" type="number" value="0.45" step="0.05" min="0"></div>
+      <div><label>Precio por metro</label><input id="eprice" type="number" value="0" min="0"></div>
+      <div><label>Merma (%)</label><input id="ewaste" type="number" value="10" min="0"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label style="color:var(--txt);font-size:13px"><input type="checkbox" id="ededuct">Descontar el espesor del canto de la medida de corte</label>
+    </div>
+    <div class="hint">Si lo activas, una pieza de 500 con canto en un borde se corta a 499,55 y queda en 500 ya cantada.</div>
+  </div>
+
+  <div class="card">
+    <h2>Piezas</h2>
+    <table id="tbl">
+      <thead><tr>
+        <th>Pieza</th><th style="width:58px">Ancho</th><th style="width:58px">Alto</th>
+        <th style="width:40px">Cant</th><th style="width:64px">Veta</th>
+        <th style="width:44px" title="Cantos en los bordes horizontales (miden el Ancho)">C ↔</th>
+        <th style="width:44px" title="Cantos en los bordes verticales (miden el Alto)">C ↕</th>
+        <th style="width:24px"></th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="bar" style="margin-top:10px">
+      <button class="ghost" id="add">+ Pieza</button>
+      <button class="ghost" id="demo">Ejemplo mueble</button>
+      <button class="ghost" id="clear">Limpiar</button>
+    </div>
+    <div class="hint"><b>Veta fija:</b> el Ancho corre en el sentido de la veta, la pieza no rota. <b>Libre:</b> puede girar 90°.<br>
+    <b>C ↔</b> = cuántos de los 2 bordes horizontales llevan canto · <b>C ↕</b> = cuántos de los 2 bordes verticales.</div>
+  </div>
+
+  <div class="card">
+    <h2>Color / textura</h2>
+    <div class="grid2">
+      <div><label>Color sólido</label><input id="color" type="color" value="#d9c7a7"></div>
+      <div><label>Modo textura</label>
+        <select id="texmode"><option value="stretch">Estirar al tablero</option><option value="tile">Mosaico</option></select></div>
+    </div>
+    <div class="row" style="margin-top:10px"><label>Subir imagen del tablero (JPG/PNG)</label><input id="tex" type="file" accept="image/*"></div>
+    <div class="grid2">
+      <div><label>Tamaño mosaico (mm)</label><input id="texsize" type="number" value="600" min="20"></div>
+      <div><label>&nbsp;</label><button class="ghost" id="cleartex" style="width:100%">Quitar imagen</button></div>
+    </div>
+    <div class="hint">La imagen se reduce automáticamente antes de guardarla en la nube.</div>
+  </div>
+
+  <button class="primary" id="run" style="padding:11px">Cubicar y optimizar</button>
+</aside>
+
+<main>
+  <div class="bar">
+    <button class="ghost" id="print">Imprimir / PDF</button>
+    <button class="ghost" id="csv">CSV lista de cortes</button>
+    <button class="ghost" id="csv2">CSV secuencia de sierra</button>
+    <label><input type="checkbox" id="showseq" checked>Ver secuencia de corte</label>
+    <label><input type="checkbox" id="showedge" checked>Ver tapacantos</label>
+  </div>
+  <div id="out"><div class="empty">Configura el tablero y las piezas, luego presiona <b>Cubicar y optimizar</b>.</div></div>
+</main>
+</div>
+
+<script type="module">
+const $ = id => document.getElementById(id);
+let pieces = [], texURL = null, lastResult = null;
+const LKEY = 'cubicador.proyectos.v1';
+const SDK = 'https://www.gstatic.com/firebasejs/12.14.0/';
+
+const DEMO = [
+  {name:'Costado',       w:1800, h:500, qty:2, grain:'fija',  ca:1, ch:1},
+  {name:'Techo/Piso',    w:864,  h:500, qty:2, grain:'fija',  ca:1, ch:0},
+  {name:'Repisa',        w:860,  h:480, qty:4, grain:'fija',  ca:1, ch:0},
+  {name:'Puerta',        w:1780, h:440, qty:2, grain:'fija',  ca:2, ch:2},
+  {name:'Zócalo',        w:864,  h:100, qty:1, grain:'libre', ca:1, ch:0},
+  {name:'Cajón frente',  w:430,  h:180, qty:3, grain:'fija',  ca:2, ch:2},
+  {name:'Cajón lateral', w:450,  h:150, qty:6, grain:'libre', ca:1, ch:0},
+  {name:'Fondo',         w:1790, h:860, qty:1, grain:'fija',  ca:0, ch:0}
+];
+
+/* ================= UI piezas ================= */
+function addPiece(p){ pieces.push(Object.assign({name:'Pieza '+(pieces.length+1),w:600,h:400,qty:1,grain:'fija',ca:0,ch:0},p||{})); render(); }
+function sel(v){ return [0,1,2].map(n=>`<option value="${n}"${+v===n?' selected':''}>${n}</option>`).join(''); }
+function render(){
+  $('tbl').querySelector('tbody').innerHTML = pieces.map((p,i)=>`<tr>
+    <td><input data-i="${i}" data-f="name" value="${String(p.name).replace(/"/g,'&quot;')}"></td>
+    <td><input data-i="${i}" data-f="w" type="number" value="${p.w}"></td>
+    <td><input data-i="${i}" data-f="h" type="number" value="${p.h}"></td>
+    <td><input data-i="${i}" data-f="qty" type="number" min="1" value="${p.qty}"></td>
+    <td><select data-i="${i}" data-f="grain">
+      <option value="fija"${p.grain==='fija'?' selected':''}>Fija</option>
+      <option value="libre"${p.grain==='libre'?' selected':''}>Libre</option></select></td>
+    <td><select data-i="${i}" data-f="ca">${sel(p.ca)}</select></td>
+    <td><select data-i="${i}" data-f="ch">${sel(p.ch)}</select></td>
+    <td><button class="del" data-del="${i}" title="Eliminar">×</button></td></tr>`).join('');
+}
+$('tbl').addEventListener('input', e=>{
+  const t=e.target, i=t.dataset.i, f=t.dataset.f; if(i===undefined||!f) return;
+  pieces[i][f] = (f==='name'||f==='grain') ? t.value : Math.max(f==='ca'||f==='ch'?0:1, parseFloat(t.value)||0);
+});
+$('tbl').addEventListener('click', e=>{ const d=e.target.dataset.del; if(d!==undefined){ pieces.splice(+d,1); render(); }});
+$('add').onclick = ()=>addPiece();
+$('demo').onclick = ()=>{ pieces = DEMO.map(p=>({...p})); render(); };
+$('clear').onclick = ()=>{ pieces=[]; render(); };
+$('print').onclick = ()=>window.print();
+
+/* Imagen: se reduce a 900 px y se comprime antes de guardar */
+function compress(file, max=900, q=0.72){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>{ const img=new Image();
+      img.onload=()=>{ const sc=Math.min(1,max/Math.max(img.width,img.height));
+        const c=document.createElement('canvas');
+        c.width=Math.max(1,Math.round(img.width*sc)); c.height=Math.max(1,Math.round(img.height*sc));
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        res(c.toDataURL('image/jpeg',q)); };
+      img.onerror=rej; img.src=r.result; };
+    r.onerror=rej; r.readAsDataURL(file);
+  });
+}
+$('tex').onchange = async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ texURL = await compress(f); if(lastResult) draw(lastResult); }
+  catch(err){ alert('No se pudo leer la imagen.'); }
+};
+$('cleartex').onclick = ()=>{ texURL=null; $('tex').value=''; if(lastResult) draw(lastResult); };
+
+/* ================= Config ================= */
+const CFGF = ['bw','bh','kerf','trim','thk','price','ethk','eprice','ewaste','texsize'];
+function readCfg(){
+  const c={}; CFGF.forEach(f=>c[f]=+$(f).value||0);
+  c.rot=$('rot').value==='1'; c.bgrain=$('bgrain').value;
+  c.ededuct=$('ededuct').checked; c.color=$('color').value; c.texmode=$('texmode').value;
+  return c;
+}
+
+/* ================= Optimizador ================= */
+function newSheet(cfg){ return { placed:[], free:[{x:cfg.trim,y:cfg.trim,w:cfg.bw-2*cfg.trim,h:cfg.bh-2*cfg.trim}] }; }
+function mergeFree(f){
+  let done=false;
+  while(!done){ done=true;
+    outer: for(let i=0;i<f.length;i++) for(let j=0;j<f.length;j++){
+      if(i===j) continue; const a=f[i], b=f[j];
+      if(Math.abs(a.x-b.x)<1e-6 && Math.abs(a.w-b.w)<1e-6 && Math.abs(a.y+a.h-b.y)<1e-6){ a.h+=b.h; f.splice(j,1); done=false; break outer; }
+      if(Math.abs(a.y-b.y)<1e-6 && Math.abs(a.h-b.h)<1e-6 && Math.abs(a.x+a.w-b.x)<1e-6){ a.w+=b.w; f.splice(j,1); done=false; break outer; }
+    }
+  }
+}
+function put(sheet,p,x,y,w,h,rot){
+  sheet.placed.push({name:p.name, x, y, w, h, rot, grain:p.grain,
+    eh: rot?p.ch:p.ca, ev: rot?p.ca:p.ch});
+}
+function tryPlace(sheet, p, cfg, mode){
+  let best=null;
+  for(let i=0;i<sheet.free.length;i++){
+    const r=sheet.free[i];
+    const opts=[[p.w,p.h,false]];
+    if(p.grain==='libre' && cfg.rot && p.w!==p.h) opts.push([p.h,p.w,true]);
+    for(const o of opts){
+      const pw=o[0], ph=o[1];
+      if(pw<=r.w+1e-6 && ph<=r.h+1e-6){
+        const leftover=r.w*r.h-pw*ph, short=Math.min(r.w-pw,r.h-ph), long=Math.max(r.w-pw,r.h-ph);
+        const sc = mode===1?short : mode===2?long : leftover;
+        if(!best || sc<best.sc-1e-6 || (Math.abs(sc-best.sc)<1e-6 && leftover<best.leftover))
+          best={i,pw,ph,rot:o[2],sc,leftover};
+      }
+    }
+  }
+  if(!best) return false;
+  const r=sheet.free[best.i]; sheet.free.splice(best.i,1);
+  put(sheet,p,r.x,r.y,best.pw,best.ph,best.rot);
+  const rw=r.w-best.pw-cfg.kerf, bh=r.h-best.ph-cfg.kerf;
+  if(r.w<r.h){
+    if(rw>0) sheet.free.push({x:r.x+best.pw+cfg.kerf, y:r.y, w:rw, h:best.ph});
+    if(bh>0) sheet.free.push({x:r.x, y:r.y+best.ph+cfg.kerf, w:r.w, h:bh});
+  }else{
+    if(rw>0) sheet.free.push({x:r.x+best.pw+cfg.kerf, y:r.y, w:rw, h:r.h});
+    if(bh>0) sheet.free.push({x:r.x, y:r.y+best.ph+cfg.kerf, w:best.pw, h:bh});
+  }
+  mergeFree(sheet.free);
+  return true;
+}
+function pack(list, cfg, mode){
+  const sheets=[], unfit=[];
+  for(const p of list){
+    let ok=false;
+    for(const s of sheets){ if(tryPlace(s,p,cfg,mode)){ ok=true; break; } }
+    if(!ok){ const s=newSheet(cfg); if(tryPlace(s,p,cfg,mode)){ sheets.push(s); ok=true; } }
+    if(!ok) unfit.push(p);
+  }
+  return {sheets, unfit};
+}
+function shelfPlace(s,p,cfg,UW,UH){
+  const cand=[[p.w,p.h,!!p.rot]];
+  if(p.grain==='libre' && cfg.rot && p.w!==p.h) cand.push([p.h,p.w,!p.rot]);
+  for(const lv of s.levels) for(const c of cand)
+    if(c[1]<=lv.h+1e-6 && lv.x+c[0]<=UW+1e-6){
+      put(s,p,cfg.trim+lv.x, cfg.trim+lv.y, c[0], c[1], c[2]); lv.x+=c[0]+cfg.kerf; return true;
+    }
+  const last=s.levels[s.levels.length-1], top = last ? last.y+last.h+cfg.kerf : 0;
+  for(const c of cand)
+    if(top+c[1]<=UH+1e-6 && c[0]<=UW+1e-6){
+      s.levels.push({y:top,h:c[1],x:c[0]+cfg.kerf});
+      put(s,p,cfg.trim, cfg.trim+top, c[0], c[1], c[2]); return true;
+    }
+  return false;
+}
+function shelfPack(list,cfg){
+  const UW=cfg.bw-2*cfg.trim, UH=cfg.bh-2*cfg.trim, sheets=[], unfit=[];
+  list = list.map(p=>(p.grain==='libre'&&cfg.rot&&p.w<p.h)?{...p,w:p.h,h:p.w,rot:true}:{...p,rot:false})
+             .sort((a,b)=>b.h-a.h||b.w-a.w);
+  for(const p of list){
+    let ok=false;
+    for(const s of sheets){ if(shelfPlace(s,p,cfg,UW,UH)){ ok=true; break; } }
+    if(!ok){ const s={placed:[],levels:[],free:[]}; if(shelfPlace(s,p,cfg,UW,UH)){ sheets.push(s); ok=true; } }
+    if(!ok) unfit.push(p);
+  }
+  return {sheets, unfit};
+}
+function optimize(){
+  const cfg = readCfg();
+  const t = cfg.ededuct ? cfg.ethk : 0;
+  const inst=[];
+  pieces.forEach(p=>{
+    const cw = Math.max(1, p.w - (+p.ch)*t), chh = Math.max(1, p.h - (+p.ca)*t);
+    for(let k=0;k<p.qty;k++) inst.push({name:p.name, w:cw, h:chh, grain:p.grain, ca:+p.ca, ch:+p.ch});
+  });
+  if(!inst.length) return null;
+  const sorts=[
+    a=>a.sort((x,y)=>(y.w*y.h)-(x.w*x.h)),
+    a=>a.sort((x,y)=>Math.max(y.w,y.h)-Math.max(x.w,x.h)),
+    a=>a.sort((x,y)=>y.h-x.h||y.w-x.w),
+    a=>a.sort((x,y)=>y.w-x.w||y.h-x.h),
+    a=>a.sort((x,y)=>(y.w+y.h)-(x.w+x.h))
+  ];
+  const runs=[];
+  for(let m=0;m<3;m++) for(const s of sorts) runs.push(()=>pack(s(inst.map(p=>({...p}))), cfg, m));
+  runs.push(()=>shelfPack(inst.map(p=>({...p})), cfg));
+  let best=null;
+  for(const run of runs){
+    const r=run();
+    const used=r.sheets.reduce((t2,sh)=>t2+sh.placed.reduce((a,p)=>a+p.w*p.h,0),0);
+    const sc=[r.unfit.length, r.sheets.length, -used];
+    if(!best || sc[0]<best.sc[0] || (sc[0]===best.sc[0] && (sc[1]<best.sc[1] || (sc[1]===best.sc[1] && sc[2]<best.sc[2]))))
+      best={...r, sc, used};
+  }
+  best.cfg=cfg; best.instCount=inst.length;
+  best.seq = best.sheets.map(s=>cutSequence(s,cfg));
+  best.edge = edgeTotals(cfg);
+  return best;
+}
+
+/* ============ Post-proceso: secuencia de corte guillotina ============ */
+function cutSequence(sheet, cfg){
+  const steps=[], T=1e-6, K=cfg.kerf;
+  if(cfg.trim>0){
+    steps.push({dir:'V', pos:cfg.trim, a:0, b:cfg.bh, len:cfg.bh, tipo:'Refile', txt:'Escuadrar borde izquierdo'});
+    steps.push({dir:'H', pos:cfg.trim, a:0, b:cfg.bw, len:cfg.bw, tipo:'Refile', txt:'Escuadrar borde inferior'});
+  }
+  const P = sheet.placed.map((p,i)=>({...p, n:i+1}));
+  let guard=0;
+  function rec(R, list){
+    if(!list.length || guard++>4000) return;
+    if(list.length===1){
+      const p=list[0];
+      if(R.x+R.w-(p.x+p.w) > K+T)
+        steps.push({dir:'V', pos:p.x+p.w, a:R.y, b:R.y+R.h, len:R.h, tipo:'Longitudinal', txt:'Dimensionar pieza '+p.n+' (ancho '+fmt(p.w)+')'});
+      if(R.y+R.h-(p.y+p.h) > K+T)
+        steps.push({dir:'H', pos:p.y+p.h, a:R.x, b:R.x+Math.min(R.w,p.w+K), len:Math.min(R.w,p.w+K), tipo:'Transversal', txt:'Dimensionar pieza '+p.n+' (alto '+fmt(p.h)+')'});
+      steps.push({dir:'-', tipo:'Pieza', n:p.n, txt:'Pieza '+p.n+' — '+p.name+' '+fmt(p.w)+'×'+fmt(p.h)});
+      return;
+    }
+    const cands=(axis)=>{
+      const k = axis==='V' ? ['x','w'] : ['y','h'];
+      const set=new Set();
+      list.forEach(p=>{ set.add(p[k[0]]+p[k[1]]); set.add(p[k[0]]-K); });
+      const lo=R[k[0]], hi=R[k[0]]+R[k[1]];
+      return [...set].filter(c=>c>lo+T && c+K<hi+T).sort((a,b)=>a-b)
+        .map(c=>{
+          const A=[],B=[];
+          for(const p of list){
+            if(p[k[0]]+p[k[1]] <= c+T) A.push(p);
+            else if(p[k[0]] >= c+K-T) B.push(p);
+            else return null;
+          }
+          return (A.length&&B.length)?{c,A,B}:null;
+        }).filter(Boolean);
+    };
+    const vs=cands('V'), hs=cands('H');
+    const first = (R.h<=R.w) ? (vs[0]||hs[0]) : (hs[0]||vs[0]);
+    if(!first){ list.forEach(p=>steps.push({dir:'-', tipo:'Pieza', n:p.n, txt:'Pieza '+p.n+' — '+p.name})); return; }
+    if(vs.includes(first)){
+      steps.push({dir:'V', pos:first.c, a:R.y, b:R.y+R.h, len:R.h, tipo:'Longitudinal', txt:'Separar en X = '+fmt(first.c)});
+      rec({x:R.x,y:R.y,w:first.c-R.x,h:R.h}, first.A);
+      rec({x:first.c+K,y:R.y,w:R.x+R.w-first.c-K,h:R.h}, first.B);
+    }else{
+      steps.push({dir:'H', pos:first.c, a:R.x, b:R.x+R.w, len:R.w, tipo:'Transversal', txt:'Separar en Y = '+fmt(first.c)});
+      rec({x:R.x,y:R.y,w:R.w,h:first.c-R.y}, first.A);
+      rec({x:R.x,y:first.c+K,w:R.w,h:R.y+R.h-first.c-K}, first.B);
+    }
+  }
+  rec({x:cfg.trim,y:cfg.trim,w:cfg.bw-2*cfg.trim,h:cfg.bh-2*cfg.trim}, P);
+  let k=0; steps.forEach(s=>{ if(s.dir!=='-') s.i=++k; });
+  return steps;
+}
+
+/* ================= Tapacantos ================= */
+function edgeTotals(cfg){
+  const rows = pieces.map(p=>({name:p.name, qty:p.qty, ca:+p.ca, ch:+p.ch,
+    m: ((+p.ca)*p.w + (+p.ch)*p.h)/1000*p.qty})).filter(r=>r.m>0);
+  const m = rows.reduce((a,r)=>a+r.m,0), mw = m*(1+cfg.ewaste/100);
+  return {rows, m, mw, cost:mw*cfg.eprice};
+}
+
+/* ================= Render ================= */
+function fmt(n){ return Math.round(n).toLocaleString('es-CL'); }
+function f1(n){ return n.toLocaleString('es-CL',{maximumFractionDigits:1}); }
+function draw(res){
+  const cfg=res.cfg, seqOn=$('showseq').checked;
+  const total = res.sheets.length*cfg.bw*cfg.bh, yl = total?res.used/total*100:0;
+  const cutLen = res.seq.reduce((t,s)=>t+s.reduce((a,c)=>a+(c.len||0),0),0)/1000;
+  const nCuts = res.seq.reduce((t,s)=>t+s.filter(c=>c.dir!=='-').length,0);
+
+  let html='';
+  if(res.unfit.length){
+    const list=[...new Set(res.unfit.map(p=>`${p.name} ${fmt(p.w)}×${fmt(p.h)}`))].join(', ');
+    html+=`<div class="alert"><b>${res.unfit.length} pieza(s) no caben</b> en el área útil (${fmt(cfg.bw-2*cfg.trim)}×${fmt(cfg.bh-2*cfg.trim)} mm): ${list}</div>`;
+  }
+  if(cfg.ededuct) html+=`<div class="note">Medidas de corte con el espesor del tapacanto (${cfg.ethk} mm) ya descontado. La medida final terminada es la que ingresaste.</div>`;
+
+  html+=`<div class="stats">
+    <div class="stat"><span>Tableros</span><b>${res.sheets.length}</b></div>
+    <div class="stat"><span>Aprovechamiento</span><b style="color:${yl>75?'var(--ok)':yl>60?'var(--warn)':'var(--bad)'}">${yl.toFixed(1)}%</b></div>
+    <div class="stat"><span>Desperdicio</span><b>${((total-res.used)/1e6).toFixed(2)} m²</b></div>
+    <div class="stat"><span>Piezas</span><b>${res.instCount-res.unfit.length}/${res.instCount}</b></div>
+    <div class="stat"><span>Cortes</span><b>${nCuts}</b></div>
+    <div class="stat"><span>Corte lineal</span><b>${f1(cutLen)} m</b></div>
+    <div class="stat"><span>Tapacanto</span><b>${f1(res.edge.mw)} m</b></div>
+    ${cfg.price>0?`<div class="stat"><span>Costo tableros</span><b>$${fmt(res.sheets.length*cfg.price)}</b></div>`:''}
+    ${cfg.eprice>0?`<div class="stat"><span>Costo canto</span><b>$${fmt(res.edge.cost)}</b></div>`:''}
+    ${(cfg.price>0||cfg.eprice>0)?`<div class="stat"><span>Total materiales</span><b>$${fmt(res.sheets.length*cfg.price+res.edge.cost)}</b></div>`:''}
+  </div>`;
+
+  if(res.edge.rows.length){
+    html+=`<div class="sheet"><h3>Tapacantos</h3>
+      <div class="meta">${f1(res.edge.m)} m netos · ${f1(res.edge.mw)} m con ${cfg.ewaste}% de merma · espesor ${cfg.ethk} mm${cfg.eprice>0?` · $${fmt(res.edge.cost)}`:''}</div>
+      <table class="lst"><thead><tr><th>Pieza</th><th>Cant</th><th>Cantos ↔</th><th>Cantos ↕</th><th>Metros</th></tr></thead><tbody>
+      ${res.edge.rows.map(r=>`<tr><td>${r.name}</td><td>${r.qty}</td><td>${r.ca}</td><td>${r.ch}</td><td>${f1(r.m)} m</td></tr>`).join('')}
+      <tr><td colspan="4" style="text-align:right"><b>Total neto</b></td><td><b>${f1(res.edge.m)} m</b></td></tr>
+      <tr><td colspan="4" style="text-align:right"><b>A comprar (+${cfg.ewaste}%)</b></td><td><b>${f1(res.edge.mw)} m</b></td></tr>
+      </tbody></table></div>`;
+  }
+
+  res.sheets.forEach((s,i)=>{
+    const used=s.placed.reduce((a,p)=>a+p.w*p.h,0), y=used/(cfg.bw*cfg.bh)*100;
+    const seq=res.seq[i], cuts=seq.filter(c=>c.dir!=='-');
+    html+=`<div class="sheet"><h3>Tablero ${i+1} de ${res.sheets.length}</h3>
+      <div class="meta">${fmt(cfg.bw)}×${fmt(cfg.bh)}×${cfg.thk} mm · ${s.placed.length} piezas · aprovechamiento ${y.toFixed(1)}% · ${cuts.length} cortes (${f1(cuts.reduce((a,c)=>a+c.len,0)/1000)} m) · sierra ${cfg.kerf} mm · refile ${cfg.trim} mm</div>
+      ${svgSheet(s,cfg,i,seqOn?cuts:[])}
+      <details open><summary>Lista de cortes</summary>
+      <table class="lst"><thead><tr><th>#</th><th>Pieza</th><th>Ancho corte</th><th>Alto corte</th><th>X</th><th>Y</th><th>Giro</th><th>Cantos</th></tr></thead><tbody>
+      ${s.placed.map((p,k)=>`<tr><td>${k+1}</td><td>${p.name}</td><td>${fmt(p.w)}</td><td>${fmt(p.h)}</td><td>${fmt(p.x)}</td><td>${fmt(p.y)}</td><td>${p.rot?'90°':'—'}</td><td>${p.eh||p.ev?`↔${p.eh} ↕${p.ev}`:'—'}</td></tr>`).join('')}
+      </tbody></table></details>
+      <details open><summary>Secuencia de corte en la sierra</summary>
+      <table class="lst"><thead><tr><th>Paso</th><th>Tipo</th><th>Medida en la sierra</th><th>Largo del corte</th><th>Detalle</th></tr></thead><tbody>
+      ${seq.map(c=>`<tr${c.dir==='-'?' style="color:var(--ok)"':''}><td>${c.dir==='-'?'✓':c.i}</td><td>${c.tipo}</td>
+        <td>${c.dir==='-'?'—':(c.dir==='V'?'X = ':'Y = ')+fmt(c.pos)+' mm'}</td>
+        <td>${c.dir==='-'?'—':fmt(c.len)+' mm'}</td><td>${c.txt}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="hint">Cada corte atraviesa completa la pieza de tablero que tienes en la mesa en ese momento (corte guillotina). ✓ = pieza terminada, lista para cantear.</div>
+      </details></div>`;
+  });
+  $('out').innerHTML=html;
+}
+function svgSheet(s,cfg,idx,cuts){
+  const W=cfg.bw,H=cfg.bh,fs=Math.max(W,H)/62, color=$('color').value;
+  const mode=$('texmode').value, ts=+$('texsize').value||600, gx=$('bgrain').value==='x';
+  const edgeOn=$('showedge').checked;
+  let defs='';
+  if(texURL){
+    const tw = mode==='stretch'?W:ts, th = mode==='stretch'?H:ts*H/W;
+    defs=`<pattern id="tex${idx}" patternUnits="userSpaceOnUse" width="${tw}" height="${th}"><image href="${texURL}" x="0" y="0" width="${tw}" height="${th}" preserveAspectRatio="none"/></pattern>`;
+  }else{
+    const st=Math.max(W,H)/90;
+    defs=`<pattern id="tex${idx}" patternUnits="userSpaceOnUse" width="${gx?st*4:st}" height="${gx?st:st*4}">
+      <rect width="100%" height="100%" fill="${color}"/>
+      <rect ${gx?`x="0" y="0" width="${st*4}" height="${st*0.35}"`:`x="0" y="0" width="${st*0.35}" height="${st*4}"`} fill="rgba(0,0,0,.07)"/></pattern>`;
+  }
+  const ew=Math.max(W,H)/230;
+  const bands = p=>{
+    if(!edgeOn) return '';
+    const L=(x1,y1,x2,y2)=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="var(--edge)" stroke-width="${ew}" stroke-linecap="square"/>`;
+    let o='';
+    if(p.eh>=1) o+=L(p.x,p.y+p.h-ew/2,p.x+p.w,p.y+p.h-ew/2);
+    if(p.eh>=2) o+=L(p.x,p.y+ew/2,p.x+p.w,p.y+ew/2);
+    if(p.ev>=1) o+=L(p.x+ew/2,p.y,p.x+ew/2,p.y+p.h);
+    if(p.ev>=2) o+=L(p.x+p.w-ew/2,p.y,p.x+p.w-ew/2,p.y+p.h);
+    return o;
+  };
+  const arrow = p=>{
+    if(p.grain!=='fija') return '';
+    const cx=p.x+p.w/2, cy=p.y+p.h/2, L=Math.min(p.w,p.h)*0.2;
+    const horiz = gx ? !p.rot : p.rot;
+    return horiz
+      ? `<line x1="${cx-L}" y1="${cy+fs*1.9}" x2="${cx+L}" y2="${cy+fs*1.9}" stroke="rgba(0,0,0,.5)" stroke-width="${fs*0.1}" marker-end="url(#ar${idx})" marker-start="url(#ar${idx})"/>`
+      : `<line x1="${cx+fs*2.6}" y1="${cy-L}" x2="${cx+fs*2.6}" y2="${cy+L}" stroke="rgba(0,0,0,.5)" stroke-width="${fs*0.1}" marker-end="url(#ar${idx})" marker-start="url(#ar${idx})"/>`;
+  };
+  const piecesSvg = s.placed.map((p,k)=>{
+    const small = Math.min(p.w,p.h) < fs*3.2, cx=p.x+p.w/2, cy=p.y+p.h/2;
+    const label = small
+      ? `<text x="${cx}" y="${cy+fs*0.35}" font-size="${fs*0.8}" text-anchor="middle" fill="#111">${k+1}</text>`
+      : `<text x="${cx}" y="${cy-fs*0.15}" font-size="${fs}" font-weight="600" text-anchor="middle" fill="#111">${k+1}. ${p.name}</text>
+         <text x="${cx}" y="${cy+fs*1.05}" font-size="${fs*0.85}" text-anchor="middle" fill="#333">${fmt(p.w)} × ${fmt(p.h)}${p.rot?' ⟳':''}</text>`;
+    return `<g><rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="url(#tex${idx})" stroke="#111" stroke-width="${Math.max(W,H)/900}"/>
+      <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="rgba(255,255,255,.10)"/>${label}${arrow(p)}${bands(p)}</g>`;
+  }).join('');
+  const cutsSvg = cuts.map(c=>{
+    const v=c.dir==='V';
+    const x1=v?c.pos:c.a, x2=v?c.pos:c.b, y1=v?c.a:c.pos, y2=v?c.b:c.pos;
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    return `<g><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#ff3b3b" stroke-width="${W/900}" stroke-dasharray="${W/90},${W/180}" opacity=".9"/>
+      <circle cx="${v?c.pos:mx}" cy="${v?my:c.pos}" r="${fs*0.75}" fill="#ff3b3b"/>
+      <text x="${v?c.pos:mx}" y="${(v?my:c.pos)+fs*0.3}" font-size="${fs*0.8}" text-anchor="middle" fill="#fff" font-weight="700">${c.i}</text></g>`;
+  }).join('');
+  return `<svg viewBox="${-W*0.02} ${-H*0.03} ${W*1.04} ${H*1.06}" xmlns="http://www.w3.org/2000/svg">
+    <defs>${defs}<marker id="ar${idx}" markerWidth="4" markerHeight="4" refX="2" refY="2" orient="auto"><path d="M0,0 L4,2 L0,4 z" fill="rgba(0,0,0,.5)"/></marker></defs>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#2a2f3a"/>
+    <rect x="${cfg.trim}" y="${cfg.trim}" width="${W-2*cfg.trim}" height="${H-2*cfg.trim}" fill="rgba(255,255,255,.04)" stroke="#555" stroke-dasharray="${W/160},${W/160}" stroke-width="${W/1200}"/>
+    ${piecesSvg}${cutsSvg}
+    <rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="#8aa" stroke-width="${W/600}"/>
+    <text x="${W/2}" y="${-H*0.006}" font-size="${fs*0.9}" text-anchor="middle" fill="#9aa4b8">${fmt(W)} mm — veta ${gx?'→':'↑'}</text>
+  </svg>`;
+}
+
+/* ================= Datos: Firebase o local ================= */
+let FB = null;            // {db, uid, fs, col}
+let index_ = [];          // [{id, nombre}]
+
+function setStatus(txt, cls){ const s=$('status'); s.textContent=txt; s.className=cls||''; }
+function snapshot(){
+  const c={}; CFGF.forEach(f=>c[f]=$(f).value);
+  return {v:2, name:$('pname').value, cfg:c, rot:$('rot').value, bgrain:$('bgrain').value,
+          ededuct:$('ededuct').checked, color:$('color').value, texmode:$('texmode').value, tex:texURL, pieces};
+}
+function restore(d){
+  if(!d||!d.pieces){ alert('Archivo de proyecto no válido.'); return; }
+  $('pname').value=d.name||'Proyecto';
+  CFGF.forEach(f=>{ if(d.cfg&&d.cfg[f]!==undefined) $(f).value=d.cfg[f]; });
+  if(d.rot) $('rot').value=d.rot;
+  if(d.bgrain) $('bgrain').value=d.bgrain;
+  $('ededuct').checked=!!d.ededuct;
+  if(d.color) $('color').value=d.color;
+  if(d.texmode) $('texmode').value=d.texmode;
+  texURL=d.tex||null; pieces=(d.pieces||[]).map(p=>({ca:0,ch:0,...p})); render(); lastResult=null;
+  $('out').innerHTML='<div class="empty">Proyecto cargado. Presiona <b>Cubicar y optimizar</b>.</div>';
+}
+function localDB(){ try{ return JSON.parse(localStorage.getItem(LKEY)||'{}'); }catch(e){ return {}; } }
+
+async function listProjects(){
+  if(FB){
+    const q = FB.fs.query(FB.fs.collection(FB.db, FB.col), FB.fs.where('uid','==',FB.uid));
+    const snap = await FB.fs.getDocs(q);
+    index_ = snap.docs.map(d=>({id:d.id, nombre:d.data().nombre||'(sin nombre)', ts:d.data().actualizado?.seconds||0}))
+                      .sort((a,b)=>b.ts-a.ts);
+  }else{
+    index_ = Object.keys(localDB()).sort().map(n=>({id:n, nombre:n}));
+  }
+  const cur=$('plist').value;
+  $('plist').innerHTML='<option value="">—</option>'+index_.map(p=>`<option value="${p.id}"${p.id===cur?' selected':''}>${p.nombre}</option>`).join('');
+}
+async function saveProject(){
+  const nombre=$('pname').value.trim();
+  if(!nombre) return alert('Ponle nombre al proyecto.');
+  const data=snapshot();
+  let json=JSON.stringify(data);
+  if(json.length>900000){
+    if(!confirm('El proyecto pesa '+Math.round(json.length/1024)+' KB y supera el límite de 1 MB de Firestore.\n¿Guardar sin la imagen de textura?')) return;
+    data.tex=null;
+  }
+  const prev=index_.find(p=>p.nombre===nombre);
+  if(FB){
+    const payload={uid:FB.uid, nombre, actualizado:FB.fs.serverTimestamp(), data};
+    try{
+      if(prev) await FB.fs.setDoc(FB.fs.doc(FB.db, FB.col, prev.id), payload);
+      else     await FB.fs.addDoc(FB.fs.collection(FB.db, FB.col), payload);
+      await listProjects();
+      const nuevo=index_.find(p=>p.nombre===nombre); if(nuevo) $('plist').value=nuevo.id;
+      setStatus('Guardado en la nube ✓','on');
+      setTimeout(()=>setStatus('Nube · '+FB.uid.slice(0,6),'on'),2500);
+    }catch(e){ alert('No se pudo guardar en la nube: '+e.message); }
+  }else{
+    const db=localDB(); db[nombre]=data;
+    try{ localStorage.setItem(LKEY, JSON.stringify(db)); await listProjects(); $('plist').value=nombre; }
+    catch(e){ alert('No se pudo guardar (¿imagen muy pesada?). Usa Exportar.'); }
+  }
+}
+async function openProject(){
+  const id=$('plist').value; if(!id) return alert('Elige un proyecto guardado.');
+  if(FB){
+    try{
+      const d=await FB.fs.getDoc(FB.fs.doc(FB.db, FB.col, id));
+      if(!d.exists()) return alert('El proyecto ya no existe.');
+      restore(d.data().data);
+    }catch(e){ alert('No se pudo abrir: '+e.message); }
+  }else restore(localDB()[id]);
+}
+async function deleteProject(){
+  const id=$('plist').value; if(!id) return;
+  const nombre=(index_.find(p=>p.id===id)||{}).nombre||id;
+  if(!confirm('¿Borrar "'+nombre+'"?')) return;
+  if(FB){
+    try{ await FB.fs.deleteDoc(FB.fs.doc(FB.db, FB.col, id)); }catch(e){ return alert('No se pudo borrar: '+e.message); }
+  }else{
+    const db=localDB(); delete db[id]; localStorage.setItem(LKEY, JSON.stringify(db));
+  }
+  await listProjects();
+}
+$('save').onclick=saveProject;
+$('load').onclick=openProject;
+$('delp').onclick=deleteProject;
+$('exp').onclick=()=>{
+  const b=new Blob([JSON.stringify(snapshot(),null,1)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+  a.download=($('pname').value.trim()||'proyecto')+'.json'; a.click();
+};
+$('imp').onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ restore(JSON.parse(r.result)); }catch(err){ alert('No se pudo leer el archivo.'); } };
+  r.readAsText(f); e.target.value='';
+};
+
+async function initCloud(){
+  let conf=null, col='proyectos';
+  try{ const m=await import('./firebase-config.js'); conf=m.firebaseConfig; col=m.COLECCION||col; }
+  catch(e){ conf=null; }
+  if(!conf || !conf.apiKey){
+    setStatus('Modo local — sin Firebase','off');
+    $('phint').innerHTML='Los proyectos se guardan solo en este navegador. Para sincronizarlos, completa <b>firebase-config.js</b>. Exportar/Importar siempre funciona.';
+    await listProjects(); return;
+  }
+  try{
+    const [appM, authM, fsM] = await Promise.all([
+      import(SDK+'firebase-app.js'), import(SDK+'firebase-auth.js'), import(SDK+'firebase-firestore.js')
+    ]);
+    const app = appM.initializeApp(conf);
+    const auth = authM.getAuth(app);
+    await authM.signInAnonymously(auth);
+    const uid = auth.currentUser.uid;
+    FB = {db: fsM.getFirestore(app), fs: fsM, uid, col};
+    setStatus('Nube · '+uid.slice(0,6),'on');
+    $('phint').innerHTML='Sesión anónima <code>'+uid.slice(0,10)+'</code>. Tus proyectos quedan asociados a este navegador: si borras los datos del sitio o cambias de equipo, se crea una sesión nueva y no verás los anteriores. Usa <b>Exportar</b> para respaldarlos o llevarlos a otro equipo.';
+    await listProjects();
+  }catch(e){
+    console.warn(e);
+    setStatus('Modo local — nube no disponible','off');
+    $('phint').innerHTML='No se pudo conectar a Firebase ('+(e.code||e.message)+'). Los proyectos se guardan en este navegador.';
+    await listProjects();
+  }
+}
+
+/* ================= Exportar CSV ================= */
+function dl(name, rows){
+  const b=new Blob(['﻿'+rows.map(r=>r.join(';')).join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=name; a.click();
+}
+$('csv').onclick=()=>{
+  if(!lastResult) return alert('Primero cubica.');
+  const rows=[['Tablero','#','Pieza','Ancho_corte','Alto_corte','X','Y','Girada','Cantos_horiz','Cantos_vert']];
+  lastResult.sheets.forEach((s,i)=>s.placed.forEach((p,k)=>rows.push([i+1,k+1,p.name,Math.round(p.w),Math.round(p.h),Math.round(p.x),Math.round(p.y),p.rot?'si':'no',p.eh||0,p.ev||0])));
+  rows.push([]); rows.push(['Tapacantos']); rows.push(['Pieza','Cant','Cantos_horiz','Cantos_vert','Metros']);
+  lastResult.edge.rows.forEach(r=>rows.push([r.name,r.qty,r.ca,r.ch,r.m.toFixed(2).replace('.',',')]));
+  rows.push(['TOTAL con merma','','','',lastResult.edge.mw.toFixed(2).replace('.',',')]);
+  dl('lista-de-cortes.csv', rows);
+};
+$('csv2').onclick=()=>{
+  if(!lastResult) return alert('Primero cubica.');
+  const rows=[['Tablero','Paso','Tipo','Eje','Medida_mm','Largo_corte_mm','Detalle']];
+  lastResult.seq.forEach((seq,i)=>seq.forEach(c=>rows.push([i+1, c.dir==='-'?'':c.i, c.tipo, c.dir==='-'?'':c.dir, c.dir==='-'?'':Math.round(c.pos), c.dir==='-'?'':Math.round(c.len), c.txt])));
+  dl('secuencia-de-corte.csv', rows);
+};
+
+/* ================= Run ================= */
+$('run').onclick=()=>{
+  if(!pieces.length) return alert('Agrega al menos una pieza.');
+  const r=optimize(); if(!r) return;
+  lastResult=r; draw(r);
+  document.querySelector('main').scrollIntoView({behavior:'smooth',block:'start'});
+};
+['color','texmode','texsize','bgrain','showseq','showedge'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
+
+pieces = DEMO.map(p=>({...p})); render(); initCloud();
+</script>
+</body>
+</html>
