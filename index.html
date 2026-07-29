@@ -42,16 +42,43 @@ td{padding:2px 2px}
 td input,td select{padding:5px 4px;font-size:12.5px}
 
 /* Tabla de piezas: desplazable a los lados, con la columna del nombre fija */
-.tblwrap{overflow-x:auto;overflow-y:visible;padding-bottom:6px}
+.tblwrap,.scrollx{overflow-x:auto;overflow-y:visible;padding-bottom:6px;-webkit-overflow-scrolling:touch}
 .tblwrap table{min-width:660px}
 .tblwrap th:first-child,.tblwrap td:first-child{position:sticky;left:0;z-index:2;background:var(--panel);padding-right:8px}
 .tblwrap th:first-child{min-width:180px}
 .tblwrap td:first-child input{min-width:172px}
 .tblwrap td input[type=number]{min-width:62px}
-.tblwrap::-webkit-scrollbar{height:9px}
-.tblwrap::-webkit-scrollbar-track{background:var(--panel2);border-radius:5px}
-.tblwrap::-webkit-scrollbar-thumb{background:#3b4354;border-radius:5px}
-.tblwrap::-webkit-scrollbar-thumb:hover{background:var(--acc)}
+.tblwrap::-webkit-scrollbar,.scrollx::-webkit-scrollbar{height:9px}
+.tblwrap::-webkit-scrollbar-track,.scrollx::-webkit-scrollbar-track{background:var(--panel2);border-radius:5px}
+.tblwrap::-webkit-scrollbar-thumb,.scrollx::-webkit-scrollbar-thumb{background:#3b4354;border-radius:5px}
+.tblwrap::-webkit-scrollbar-thumb:hover,.scrollx::-webkit-scrollbar-thumb:hover{background:var(--acc)}
+.scrollx table{min-width:520px}
+
+/* ---- Móvil: la página nunca se desplaza a los lados; solo las tablas ---- */
+html,body{max-width:100%;overflow-x:hidden}
+@media(max-width:720px){
+  header{padding:11px 13px;gap:8px}
+  h1{font-size:17px}
+  header small{font-size:11px;width:100%;order:3}
+  #status{margin-left:auto}
+  .wrap{padding:11px;gap:12px}
+  .card{padding:11px;margin-bottom:11px}
+  .grid3,.grid4{grid-template-columns:1fr 1fr}
+  /* 16px evita que el navegador haga zoom al tocar un campo */
+  input,select{font-size:16px}
+  button{font-size:14px}
+  .tblwrap td input,.tblwrap td select{font-size:15px}
+  .stats{grid-template-columns:repeat(auto-fit,minmax(102px,1fr));gap:8px}
+  .stat{padding:8px 10px}
+  .stat b{font-size:17px}
+  .stat span{font-size:10px}
+  .sheet{padding:11px}
+  .bar{gap:6px}
+  .bar button{flex:1 1 45%;padding:9px 10px}
+  .bar label{flex:1 1 100%}
+  .lst{font-size:11.5px}
+  .lst td,.lst th{padding:4px 5px}
+}
 .del{color:var(--bad);background:none;border:none;width:24px;padding:2px;font-size:16px;line-height:1}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin-bottom:14px}
 .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
@@ -76,6 +103,8 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
   .wrap{grid-template-columns:1fr;padding:0}
   aside,.bar,header small,#status{display:none}
   .sheet{page-break-after:always;border:none;background:#fff}
+  .tblwrap,.scrollx{overflow:visible}
+  .scrollx table,.tblwrap table{min-width:0}
   svg{background:#fff}
   .stat{background:#fff;border:1px solid #ccc}
   .stat span,.sheet .meta{color:#555}
@@ -490,11 +519,11 @@ function draw(res){
   if(res.edge.rows.length){
     html+=`<div class="sheet"><h3>Tapacantos</h3>
       <div class="meta">${f1(res.edge.m)} m netos · ${f1(res.edge.mw)} m con ${cfg.ewaste}% de merma · espesor ${cfg.ethk} mm${cfg.eprice>0?` · $${fmt(res.edge.cost)}`:''}</div>
-      <table class="lst"><thead><tr><th>Pieza</th><th>Cant</th><th>Cantos ↔</th><th>Cantos ↕</th><th>Metros</th></tr></thead><tbody>
+      <div class="scrollx"><table class="lst"><thead><tr><th>Pieza</th><th>Cant</th><th>Cantos ↔</th><th>Cantos ↕</th><th>Metros</th></tr></thead><tbody>
       ${res.edge.rows.map(r=>`<tr><td>${r.name}</td><td>${r.qty}</td><td>${r.ca}</td><td>${r.ch}</td><td>${f1(r.m)} m</td></tr>`).join('')}
       <tr><td colspan="4" style="text-align:right"><b>Total neto</b></td><td><b>${f1(res.edge.m)} m</b></td></tr>
       <tr><td colspan="4" style="text-align:right"><b>A comprar (+${cfg.ewaste}%)</b></td><td><b>${f1(res.edge.mw)} m</b></td></tr>
-      </tbody></table></div>`;
+      </tbody></table></div></div>`;
   }
 
   res.sheets.forEach((s,i)=>{
@@ -504,15 +533,15 @@ function draw(res){
       <div class="meta">${fmt(cfg.bw)}×${fmt(cfg.bh)}×${cfg.thk} mm · ${s.placed.length} piezas · aprovechamiento ${y.toFixed(1)}% · ${cuts.length} cortes (${f1(cuts.reduce((a,c)=>a+c.len,0)/1000)} m) · sierra ${cfg.kerf} mm · refile ${cfg.trim} mm</div>
       ${svgSheet(s,cfg,i,seqOn?cuts:[])}
       <details open><summary>Lista de cortes</summary>
-      <table class="lst"><thead><tr><th>#</th><th>Pieza</th><th>Ancho corte</th><th>Alto corte</th><th>X</th><th>Y</th><th>Giro</th><th>Cantos</th></tr></thead><tbody>
+      <div class="scrollx"><table class="lst"><thead><tr><th>#</th><th>Pieza</th><th>Ancho corte</th><th>Alto corte</th><th>X</th><th>Y</th><th>Giro</th><th>Cantos</th></tr></thead><tbody>
       ${s.placed.map((p,k)=>`<tr><td>${k+1}</td><td>${p.name}</td><td>${fmt(p.w)}</td><td>${fmt(p.h)}</td><td>${fmt(p.x)}</td><td>${fmt(p.y)}</td><td>${p.rot?'90°':'—'}</td><td>${p.eh||p.ev?`↔${p.eh} ↕${p.ev}`:'—'}</td></tr>`).join('')}
-      </tbody></table></details>
+      </tbody></table></div></details>
       <details open><summary>Secuencia de corte en la sierra</summary>
-      <table class="lst"><thead><tr><th>Paso</th><th>Tipo</th><th>Medida en la sierra</th><th>Largo del corte</th><th>Detalle</th></tr></thead><tbody>
+      <div class="scrollx"><table class="lst"><thead><tr><th>Paso</th><th>Tipo</th><th>Medida en la sierra</th><th>Largo del corte</th><th>Detalle</th></tr></thead><tbody>
       ${seq.map(c=>`<tr${c.dir==='-'?' style="color:var(--ok)"':''}><td>${c.dir==='-'?'✓':c.i}</td><td>${c.tipo}</td>
         <td>${c.dir==='-'?'—':(c.dir==='V'?'X = ':'Y = ')+fmt(c.pos)+' mm'}</td>
         <td>${c.dir==='-'?'—':fmt(c.len)+' mm'}</td><td>${c.txt}</td></tr>`).join('')}
-      </tbody></table>
+      </tbody></table></div>
       <div class="hint">Cada corte atraviesa completa la pieza de tablero que tienes en la mesa en ese momento (corte guillotina). ✓ = pieza terminada, lista para cantear.</div>
       </details></div>`;
   });
