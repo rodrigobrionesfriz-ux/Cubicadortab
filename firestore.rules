@@ -1,8 +1,10 @@
 rules_version = '2';
 
-// Reglas para el Cubicador de Melamina.
-// Cada proyecto pertenece al uid anónimo que lo creó: nadie más puede leerlo,
-// editarlo ni borrarlo, aunque conozca el ID del documento.
+// Reglas para el Cubicador de Melamina — modo "biblioteca compartida".
+//
+//   * Cualquier usuario autenticado puede VER todos los proyectos.
+//   * Solo el autor puede MODIFICAR o BORRAR los suyos.
+//   * Nadie puede cambiarle el dueño a un documento.
 //
 // Cómo aplicarlas:
 //   Consola de Firebase -> Firestore Database -> pestaña "Reglas"
@@ -13,17 +15,24 @@ service cloud.firestore {
 
     match /proyectos/{proyectoId} {
 
-      // Leer / modificar / borrar: solo el dueño del documento.
-      allow read, update, delete: if request.auth != null
-                                  && resource.data.uid == request.auth.uid;
+      // Ver: cualquiera con sesión iniciada (incluye las sesiones anónimas).
+      allow read: if request.auth != null;
 
-      // Crear: el uid del documento debe ser el del usuario autenticado,
-      // y el nombre debe ser un texto razonable.
+      // Crear: el documento debe quedar a nombre de quien lo crea.
       allow create: if request.auth != null
                     && request.resource.data.uid == request.auth.uid
                     && request.resource.data.nombre is string
                     && request.resource.data.nombre.size() > 0
                     && request.resource.data.nombre.size() < 120;
+
+      // Modificar: solo el autor, y sin poder traspasar la propiedad.
+      allow update: if request.auth != null
+                    && resource.data.uid == request.auth.uid
+                    && request.resource.data.uid == request.auth.uid;
+
+      // Borrar: solo el autor.
+      allow delete: if request.auth != null
+                    && resource.data.uid == request.auth.uid;
     }
 
     // Todo lo demás queda bloqueado.

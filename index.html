@@ -40,6 +40,18 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{color:var(--muted);font-weight:500;text-align:left;padding:4px 2px;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px}
 td{padding:2px 2px}
 td input,td select{padding:5px 4px;font-size:12.5px}
+
+/* Tabla de piezas: desplazable a los lados, con la columna del nombre fija */
+.tblwrap{overflow-x:auto;overflow-y:visible;padding-bottom:6px}
+.tblwrap table{min-width:660px}
+.tblwrap th:first-child,.tblwrap td:first-child{position:sticky;left:0;z-index:2;background:var(--panel);padding-right:8px}
+.tblwrap th:first-child{min-width:180px}
+.tblwrap td:first-child input{min-width:172px}
+.tblwrap td input[type=number]{min-width:62px}
+.tblwrap::-webkit-scrollbar{height:9px}
+.tblwrap::-webkit-scrollbar-track{background:var(--panel2);border-radius:5px}
+.tblwrap::-webkit-scrollbar-thumb{background:#3b4354;border-radius:5px}
+.tblwrap::-webkit-scrollbar-thumb:hover{background:var(--acc)}
 .del{color:var(--bad);background:none;border:none;width:24px;padding:2px;font-size:16px;line-height:1}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(125px,1fr));gap:10px;margin-bottom:14px}
 .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
@@ -134,16 +146,19 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
 
   <div class="card">
     <h2>Piezas</h2>
+    <div class="tblwrap">
     <table id="tbl">
       <thead><tr>
-        <th>Pieza</th><th style="width:58px">Ancho</th><th style="width:58px">Alto</th>
-        <th style="width:40px">Cant</th><th style="width:64px">Veta</th>
-        <th style="width:44px" title="Cantos en los bordes horizontales (miden el Ancho)">C ↔</th>
-        <th style="width:44px" title="Cantos en los bordes verticales (miden el Alto)">C ↕</th>
-        <th style="width:24px"></th>
+        <th>Pieza</th><th style="width:70px">Ancho</th><th style="width:70px">Alto</th>
+        <th style="width:52px">Cant</th><th style="width:74px">Veta</th>
+        <th style="width:50px" title="Cantos en los bordes horizontales (miden el Ancho)">C ↔</th>
+        <th style="width:50px" title="Cantos en los bordes verticales (miden el Alto)">C ↕</th>
+        <th style="width:26px"></th>
       </tr></thead>
       <tbody></tbody>
     </table>
+    </div>
+    <div class="hint" id="scrollhint" style="display:none">↔ Desliza la tabla hacia los lados para ver todas las columnas. El nombre de la pieza queda fijo.</div>
     <div class="bar" style="margin-top:10px">
       <button class="ghost" id="add">+ Pieza</button>
       <button class="ghost" id="demo">Ejemplo mueble</button>
@@ -203,9 +218,10 @@ const DEMO = [
 /* ================= UI piezas ================= */
 function addPiece(p){ pieces.push(Object.assign({name:'Pieza '+(pieces.length+1),w:600,h:400,qty:1,grain:'fija',ca:0,ch:0},p||{})); render(); }
 function sel(v){ return [0,1,2].map(n=>`<option value="${n}"${+v===n?' selected':''}>${n}</option>`).join(''); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 function render(){
   $('tbl').querySelector('tbody').innerHTML = pieces.map((p,i)=>`<tr>
-    <td><input data-i="${i}" data-f="name" value="${String(p.name).replace(/"/g,'&quot;')}"></td>
+    <td><input data-i="${i}" data-f="name" value="${esc(p.name)}" title="${esc(p.name)} — ${p.w} × ${p.h} mm"></td>
     <td><input data-i="${i}" data-f="w" type="number" value="${p.w}"></td>
     <td><input data-i="${i}" data-f="h" type="number" value="${p.h}"></td>
     <td><input data-i="${i}" data-f="qty" type="number" min="1" value="${p.qty}"></td>
@@ -215,10 +231,18 @@ function render(){
     <td><select data-i="${i}" data-f="ca">${sel(p.ca)}</select></td>
     <td><select data-i="${i}" data-f="ch">${sel(p.ch)}</select></td>
     <td><button class="del" data-del="${i}" title="Eliminar">×</button></td></tr>`).join('');
+  checkScroll();
 }
+function checkScroll(){
+  const w=document.querySelector('.tblwrap'); if(!w) return;
+  $('scrollhint').style.display = (w.scrollWidth > w.clientWidth+4) ? '' : 'none';
+}
+addEventListener('resize', checkScroll);
 $('tbl').addEventListener('input', e=>{
   const t=e.target, i=t.dataset.i, f=t.dataset.f; if(i===undefined||!f) return;
   pieces[i][f] = (f==='name'||f==='grain') ? t.value : Math.max(f==='ca'||f==='ch'?0:1, parseFloat(t.value)||0);
+  const p=pieces[i], nm=t.closest('tr').querySelector('input[data-f="name"]');
+  if(nm) nm.title = p.name+' — '+p.w+' × '+p.h+' mm';
 });
 $('tbl').addEventListener('click', e=>{ const d=e.target.dataset.del; if(d!==undefined){ pieces.splice(+d,1); render(); }});
 $('add').onclick = ()=>addPiece();
@@ -580,16 +604,19 @@ function localDB(){ try{ return JSON.parse(localStorage.getItem(LKEY)||'{}'); }c
 
 async function listProjects(){
   if(FB){
-    const q = FB.fs.query(FB.fs.collection(FB.db, FB.col), FB.fs.where('uid','==',FB.uid));
-    const snap = await FB.fs.getDocs(q);
-    index_ = snap.docs.map(d=>({id:d.id, nombre:d.data().nombre||'(sin nombre)', ts:d.data().actualizado?.seconds||0}))
-                      .sort((a,b)=>b.ts-a.ts);
+    const snap = await FB.fs.getDocs(FB.fs.collection(FB.db, FB.col));
+    index_ = snap.docs.map(d=>{ const v=d.data();
+        return {id:d.id, nombre:v.nombre||'(sin nombre)', uid:v.uid||'', ts:v.actualizado?.seconds||0}; })
+      .sort((a,b)=>b.ts-a.ts);
   }else{
-    index_ = Object.keys(localDB()).sort().map(n=>({id:n, nombre:n}));
+    index_ = Object.keys(localDB()).sort().map(n=>({id:n, nombre:n, uid:'local'}));
   }
   const cur=$('plist').value;
-  $('plist').innerHTML='<option value="">—</option>'+index_.map(p=>`<option value="${p.id}"${p.id===cur?' selected':''}>${p.nombre}</option>`).join('');
+  const tag = p => !FB ? '' : (p.uid===FB.uid ? ' · mío' : ' · de '+(p.uid||'?').slice(0,4));
+  $('plist').innerHTML='<option value="">—</option>'+
+    index_.map(p=>`<option value="${p.id}"${p.id===cur?' selected':''}>${p.nombre}${tag(p)}</option>`).join('');
 }
+function esMio(p){ return !FB || p.uid===FB.uid; }
 async function saveProject(){
   const nombre=$('pname').value.trim();
   if(!nombre) return alert('Ponle nombre al proyecto.');
@@ -599,14 +626,18 @@ async function saveProject(){
     if(!confirm('El proyecto pesa '+Math.round(json.length/1024)+' KB y supera el límite de 1 MB de Firestore.\n¿Guardar sin la imagen de textura?')) return;
     data.tex=null;
   }
-  const prev=index_.find(p=>p.nombre===nombre);
+  // Solo se sobrescribe un proyecto propio con el mismo nombre.
+  // Si el nombre pertenece a otra persona, se guarda una copia tuya.
+  const prev=index_.find(p=>p.nombre===nombre && esMio(p));
+  const ajeno=!prev && index_.some(p=>p.nombre===nombre);
   if(FB){
+    if(ajeno && !confirm('Ya existe un proyecto "'+nombre+'" de otra persona.\nNo puedes modificar el suyo: se guardará una copia tuya con el mismo nombre.\n\n¿Continuar?')) return;
     const payload={uid:FB.uid, nombre, actualizado:FB.fs.serverTimestamp(), data};
     try{
       if(prev) await FB.fs.setDoc(FB.fs.doc(FB.db, FB.col, prev.id), payload);
       else     await FB.fs.addDoc(FB.fs.collection(FB.db, FB.col), payload);
       await listProjects();
-      const nuevo=index_.find(p=>p.nombre===nombre); if(nuevo) $('plist').value=nuevo.id;
+      const nuevo=index_.find(p=>p.nombre===nombre && esMio(p)); if(nuevo) $('plist').value=nuevo.id;
       setStatus('Guardado en la nube ✓','on');
       setTimeout(()=>setStatus('Nube · '+FB.uid.slice(0,6),'on'),2500);
     }catch(e){ alert('No se pudo guardar en la nube: '+e.message); }
@@ -628,7 +659,8 @@ async function openProject(){
 }
 async function deleteProject(){
   const id=$('plist').value; if(!id) return;
-  const nombre=(index_.find(p=>p.id===id)||{}).nombre||id;
+  const p=index_.find(x=>x.id===id)||{}, nombre=p.nombre||id;
+  if(!esMio(p)) return alert('"'+nombre+'" fue creado por otra persona.\nPuedes abrirlo y guardarlo como copia tuya, pero no borrarlo.');
   if(!confirm('¿Borrar "'+nombre+'"?')) return;
   if(FB){
     try{ await FB.fs.deleteDoc(FB.fs.doc(FB.db, FB.col, id)); }catch(e){ return alert('No se pudo borrar: '+e.message); }
@@ -671,7 +703,7 @@ async function initCloud(){
     const uid = auth.currentUser.uid;
     FB = {db: fsM.getFirestore(app), fs: fsM, uid, col};
     setStatus('Nube · '+uid.slice(0,6),'on');
-    $('phint').innerHTML='Sesión anónima <code>'+uid.slice(0,10)+'</code>. Tus proyectos quedan asociados a este navegador: si borras los datos del sitio o cambias de equipo, se crea una sesión nueva y no verás los anteriores. Usa <b>Exportar</b> para respaldarlos o llevarlos a otro equipo.';
+    $('phint').innerHTML='Sesión anónima <code>'+uid.slice(0,10)+'</code>. La lista muestra <b>todos</b> los proyectos: los tuyos aparecen marcados «mío» y solo esos puedes modificar o borrar. Los de otros se abren y se guardan como copia tuya. Si borras los datos del sitio o cambias de equipo se crea una sesión nueva: usa <b>Exportar</b> para respaldar.';
     await listProjects();
   }catch(e){
     console.warn(e);

@@ -124,6 +124,17 @@ Recarga la página: arriba a la derecha debe decir **Nube · xxxxxx**.
 
 - Al abrir la app, Firebase crea una **sesión anónima** para ese navegador y todos los proyectos quedan asociados a ese ID.
 - Se guardan en la colección `proyectos`, un documento por proyecto: `{ uid, nombre, actualizado, data }`.
+
+### Biblioteca compartida
+
+La lista de proyectos muestra **todos** los proyectos de todos los usuarios:
+
+- Los tuyos aparecen marcados **· mío**; los demás, con el inicio del ID de su autor (**· de a1b2**).
+- Cualquiera puede abrir cualquier proyecto y usarlo como punto de partida.
+- **Guardar** solo sobrescribe proyectos propios. Si el nombre pertenece a otra persona, la app avisa y guarda una copia tuya.
+- **Borrar** solo funciona sobre los propios; las reglas de Firestore lo impiden aunque se intente por otra vía.
+
+Ten presente que la página es pública: cualquiera que tenga el enlace verá los proyectos guardados. No pongas datos de clientes ahí.
 - La imagen de textura se reduce a 900 px y se comprime en JPEG antes de guardarse, para respetar el límite de 1 MB por documento de Firestore.
 
 **Importante:** una sesión anónima no se puede recuperar. Si borras los datos del sitio, usas modo incógnito o cambias de equipo, Firebase crea un ID nuevo y no verás los proyectos anteriores. Para llevarte un proyecto a otro computador usa **Exportar** (descarga un `.json`) e **Importar**.
