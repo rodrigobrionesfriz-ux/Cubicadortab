@@ -18,8 +18,17 @@ App web para cubicar tableros de melamina: optimiza los cortes respetando la **v
 | Archivo | Para qué sirve |
 |---|---|
 | `index.html` | La aplicación completa. |
-| `firebase-config.js` | Tus credenciales de Firebase. Vacío = modo local. |
+| `firebase-config.js` | Credenciales de Firebase. Ya configurado con el proyecto `cubicadortab`. |
 | `firestore.rules` | Reglas de seguridad para pegar en la consola de Firebase. |
+
+## Estado de esta copia
+
+- [x] Credenciales de Firebase cargadas (proyecto `cubicadortab`)
+- [ ] Autenticación anónima habilitada en la consola
+- [ ] Reglas de `firestore.rules` publicadas
+- [ ] Dominio `TU-USUARIO.github.io` autorizado en Authentication → Settings
+
+Los tres pendientes se hacen una sola vez en la consola de Firebase. Están detallados en la sección 3.
 
 ---
 
@@ -75,7 +84,9 @@ Abre `index.html` con doble clic. Funciona todo; los proyectos se guardan en el 
 
 > Sin este paso cualquiera podría leer o borrar los proyectos de todos. No te lo saltes.
 
-### 3.5 Copiar las credenciales
+### 3.5 Copiar las credenciales — ya hecho
+
+Si usas el `firebase-config.js` de este repo, sáltate este paso: ya tiene las credenciales del proyecto `cubicadortab`. Solo repítelo si creas otro proyecto de Firebase o si la app muestra `auth/api-key-not-valid`.
 
 1. Ve a **https://console.firebase.google.com/project/_/settings/general**
    (o ícono de engranaje → **Configuración del proyecto**).
