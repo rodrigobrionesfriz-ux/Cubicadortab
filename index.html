@@ -165,6 +165,15 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
         <select id="rot"><option value="1">Sí</option><option value="0">No</option></select></div>
       <div><label>Precio tablero</label><input id="price" type="number" value="0" min="0"></div>
     </div>
+    <div class="row" style="margin-top:10px">
+      <label>Armado del mueble (para la vista 3D)</label>
+      <select id="armado">
+        <option value="costados">Costados por fuera — tapan piso y techo</option>
+        <option value="horizontales">Piso y techo por fuera — tapan los costados</option>
+        <option value="mixto">Techo por fuera, piso entre costados</option>
+      </select>
+    </div>
+    <div class="hint">Cambia solo cómo se interpretan las medidas al armar, no los cortes. Con costados por fuera, un piso de 864 da un mueble de 900; con piso y techo por fuera, da uno de 864.</div>
   </div>
 
   <div class="card">
@@ -178,6 +187,40 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
       <label style="color:var(--txt);font-size:13px"><input type="checkbox" id="ededuct">Descontar el espesor del canto de la medida de corte</label>
     </div>
     <div class="hint">Si lo activas, una pieza de 500 con canto en un borde se corta a 499,55 y queda en 500 ya cantada.</div>
+  </div>
+
+  <div class="card">
+    <h2>Diseñar mueble → piezas</h2>
+    <div class="grid3">
+      <div><label>Ancho exterior</label><input id="gW" type="number" value="900" min="50"></div>
+      <div><label>Alto exterior</label><input id="gH" type="number" value="1800" min="50"></div>
+      <div><label>Fondo</label><input id="gD" type="number" value="500" min="50"></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid3">
+      <div><label>Repisas</label><input id="gRep" type="number" value="4" min="0"></div>
+      <div><label>Puertas</label><input id="gPu" type="number" value="2" min="0"></div>
+      <div><label>Cajones</label><input id="gCaj" type="number" value="0" min="0"></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid3">
+      <div><label>Alto de cajón</label><input id="gCajH" type="number" value="180" min="40"></div>
+      <div><label>Zócalo (0 = sin)</label><input id="gZoc" type="number" value="0" min="0"></div>
+      <div><label>Holgura puertas</label><input id="gHol" type="number" value="3" min="0" step="0.5"></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid2">
+      <div><label>Fondo trasero</label>
+        <select id="gFondo">
+          <option value="atornillado">Atornillado atrás</option>
+          <option value="encajado">Encajado / ranurado</option>
+          <option value="no">Sin fondo</option>
+        </select></div>
+      <div><label>Cajas de cajón</label>
+        <select id="gCajas"><option value="0">Solo los frentes</option><option value="1">Incluir la caja</option></select></div>
+    </div>
+    <button id="gen" style="margin-top:11px">Generar lista de piezas</button>
+    <div class="hint">Usa el espesor y el <b>armado</b> de la tarjeta Tablero para repartir las medidas. Genera la lista de abajo, que después puedes editar a mano pieza por pieza.</div>
   </div>
 
   <div class="card">
@@ -310,6 +353,7 @@ $('cleartex').onclick = ()=>{ texURL=null; $('tex').value=''; if(lastResult) dra
 
 /* ================= Config ================= */
 const CFGF = ['bw','bh','kerf','trim','thk','price','ethk','eprice','ewaste','texsize'];
+const GENF = ['gW','gH','gD','gRep','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas'];
 function readCfg(){
   const c={}; CFGF.forEach(f=>c[f]=+$(f).value||0);
   c.rot=$('rot').value==='1'; c.bgrain=$('bgrain').value;
@@ -503,8 +547,8 @@ function detectRole(n){
   const s=String(n).toLowerCase();
   const esCajon=/caj[oó]n|gaveta/.test(s);
   const techo=/tech|cubiert|tapa|superior/.test(s), piso=/piso|base|inferior/.test(s);
-  if(esCajon && /frente|frontal|cara/.test(s)) return 'cajon';
-  if(/costad|lateral|lado/.test(s) && !esCajon) return 'costado';
+  if(esCajon) return /frente|frontal|cara/.test(s) ? 'cajon' : 'otro';
+  if(/costad|lateral|lado/.test(s)) return 'costado';
   if(techo && piso) return 'pisotecho';
   if(techo) return 'techo';
   if(piso) return 'piso';
@@ -516,26 +560,101 @@ function detectRole(n){
 }
 function roleOf(p){ const o=roleOverride[p.name]; return (o && o!=='auto') ? o : detectRole(p.name); }
 
+/* ---- Camino inverso: del mueble terminado a la lista de piezas ---- */
+function generarPiezas(){
+  const t=+$('thk').value||18, modo=$('armado').value||'costados';
+  const W=+$('gW').value, H=+$('gH').value, D=+$('gD').value;
+  if(!(W>0&&H>0&&D>0)) return alert('Completa ancho, alto y fondo del mueble.');
+  if(W<=2*t+20 || H<=2*t+20) return alert('El mueble es demasiado chico para ese espesor de tablero.');
+  const nRep=+$('gRep').value||0, nPu=+$('gPu').value||0, nCaj=+$('gCaj').value||0;
+  const hCaj=+$('gCajH').value||180, hZoc=+$('gZoc').value||0, hp=+$('gHol').value||0;
+  const conCaja=$('gCajas').value==='1', tFondo=$('gFondo').value;
+  const Wi=W-2*t;                       // ancho libre entre costados
+  const P=[];
+  const add=(name,w,h,qty,grain,ca,ch)=>{ w=Math.round(w); h=Math.round(h);
+    if(w>0&&h>0&&qty>0) P.push({name,w,h,qty,grain,ca,ch}); };
+
+  // Estructura, según cómo se arma
+  if(modo==='horizontales'){
+    add('Piso/Techo', W, D, 2,'fija',1,0);
+    add('Costado',    H-2*t, D, 2,'fija',1,1);
+  }else if(modo==='mixto'){
+    add('Techo',   W,  D, 1,'fija',1,0);
+    add('Piso',    Wi, D, 1,'fija',1,0);
+    add('Costado', H-t, D, 2,'fija',1,1);
+  }else{
+    add('Costado',    H,  D, 2,'fija',1,1);
+    add('Piso/Techo', Wi, D, 2,'fija',1,0);
+  }
+  if(nRep) add('Repisa', Wi-1, Math.max(80,D-20), nRep,'fija',1,0);
+  if(hZoc>0) add('Zócalo', Wi, hZoc, 1,'libre',1,0);
+
+  // Frentes: los cajones ocupan la parte baja y las puertas el resto
+  const altoCaj=nCaj*hCaj;
+  if(nCaj){
+    add('Cajón frente', W-2*hp, hCaj-hp, nCaj,'fija',2,2);
+    if(conCaja){
+      const anchoCaja=Wi-25, profCaja=Math.max(80,D-40), altoCaja=Math.max(60,hCaj-40);
+      add('Cajón lateral', profCaja, altoCaja, nCaj*2,'libre',1,0);
+      add('Cajón trasera', anchoCaja-2*t, altoCaja, nCaj,'libre',1,0);
+      add('Cajón piso',    anchoCaja-2*t+12, profCaja-6, nCaj,'libre',0,0);
+    }
+  }
+  if(nPu){
+    const aw=(W-(nPu+1)*hp)/nPu, ah=H-hZoc-altoCaj-2*hp;
+    if(ah<=0) return alert('No queda alto para las puertas: los cajones y el zócalo ocupan todo el frente.');
+    add('Puerta', ah, aw, nPu,'fija',2,2);
+  }
+  if(tFondo==='atornillado') add('Fondo', H, W, 1,'fija',0,0);
+  else if(tFondo==='encajado') add('Fondo', H-2*t+12, Wi+12, 1,'fija',0,0);
+
+  if(!P.length) return alert('No se generó ninguna pieza. Revisa las medidas.');
+  if(pieces.length && !confirm('Se reemplazará la lista de piezas actual por '+P.length+' filas generadas.\n¿Continuar?')) return;
+  pieces=P; roleOverride={}; render(); lastResult=null;
+  $('out').innerHTML='<div class="empty">Piezas generadas desde el mueble de '+fmt(W)+' × '+fmt(H)+' × '+fmt(D)+' mm.<br>Revísalas y presiona <b>Cubicar y optimizar</b>.</div>';
+}
+$('gen').onclick=generarPiezas;
+
+const ARMADOS={
+  costados:'Costados por fuera — tapan piso y techo',
+  horizontales:'Piso y techo por fuera — tapan los costados',
+  mixto:'Techo por fuera, piso entre costados'
+};
 function buildModel(){
-  const t=+$('thk').value||18;
+  const t=+$('thk').value||18, modo=$('armado').value||'costados';
   const gs=pieces.filter(p=>+p.qty>0).map(p=>({...p, w:+p.w, h:+p.h, qty:+p.qty, rol:roleOf(p)}));
   const has=r=>gs.some(g=>g.rol===r);
   const cos=gs.find(g=>g.rol==='costado');
   if(!cos) return {err:'No identifico los costados. Abre «Cómo se interpretó cada pieza» y marca cuál es el Costado.'};
-  const H=Math.max(cos.w,cos.h), D=Math.min(cos.w,cos.h);
-  const h0=gs.find(g=>['piso','techo','pisotecho'].includes(g.rol)) || gs.find(g=>g.rol==='repisa');
-  let Wi=null;
-  if(h0) Wi = Math.abs(h0.w-D)<=Math.abs(h0.h-D) ? h0.h : h0.w;
-  else { const f=gs.find(g=>g.rol==='fondo'); if(f) Wi = Math.abs(f.w-H)<=Math.abs(f.h-H) ? f.h : f.w; }
-  if(!Wi || Wi<=0) return {err:'No identifico el piso, el techo ni una repisa, así que no puedo deducir el ancho del mueble.'};
-  const W=Wi+2*t;
+  const Hc=Math.max(cos.w,cos.h), D=Math.min(cos.w,cos.h);
+  const hasPiso=has('piso')||has('pisotecho'), hasTecho=has('techo')||has('pisotecho');
+  const gTecho=gs.find(g=>g.rol==='techo'||g.rol==='pisotecho');
+  const gPiso =gs.find(g=>g.rol==='piso' ||g.rol==='pisotecho');
+  const href=(modo==='mixto' ? (gTecho||gPiso) : (gPiso||gTecho)) || gs.find(g=>g.rol==='repisa');
+  let Wh=null, desdeFondo=false;
+  if(href) Wh = Math.abs(href.w-D)<=Math.abs(href.h-D) ? href.h : href.w;
+  else { const f=gs.find(g=>g.rol==='fondo');
+         if(f){ Wh = Math.abs(f.w-Hc)<=Math.abs(f.h-Hc) ? f.h : f.w; desdeFondo=true; } }
+  if(!Wh || Wh<=0) return {err:'No identifico el piso, el techo ni una repisa, así que no puedo deducir el ancho del mueble.'};
+
+  // Las medidas exteriores dependen de cómo se arma: la misma lista de cortes
+  // da un mueble distinto según qué pieza tape a cuál.
+  let W,H,sideY0,sideH,pisoX,pisoW,techoX,techoW;
+  if(modo==='horizontales'){
+    W=Wh; H=Hc+2*t; sideY0=t; sideH=Hc; pisoX=0; pisoW=W; techoX=0; techoW=W;
+  }else if(modo==='mixto'){
+    W=(gTecho&&!desdeFondo)?Wh:Wh+2*t; H=Hc+t; sideY0=0; sideH=Hc;
+    pisoX=t; pisoW=W-2*t; techoX=0; techoW=W;
+  }else{
+    W=Wh+2*t; H=Hc; sideY0=0; sideH=Hc; pisoX=t; pisoW=W-2*t; techoX=t; techoW=W-2*t;
+  }
+  const Wi=W-2*t;
 
   const P=[];
   const add=(x,y,z,w,h,d,tipo)=>{ if(w>0&&h>0&&d>0) P.push({x,y,z,w,h,d,tipo}); };
-  add(0,0,0,t,H,D,'costado'); add(W-t,0,0,t,H,D,'costado');
-  const hasPiso=has('piso')||has('pisotecho'), hasTecho=has('techo')||has('pisotecho');
-  if(hasPiso)  add(t,0,0,Wi,t,D,'horiz');
-  if(hasTecho) add(t,H-t,0,Wi,t,D,'horiz');
+  add(0,sideY0,0,t,sideH,D,'costado'); add(W-t,sideY0,0,t,sideH,D,'costado');
+  if(hasPiso)  add(pisoX,0,0,pisoW,t,D,'horiz');
+  if(hasTecho) add(techoX,H-t,0,techoW,t,D,'horiz');
   const fondo=gs.find(g=>g.rol==='fondo'), eFondo=fondo?Math.max(4,t/3):0;
   if(fondo) add(0,0,0,W,H,eFondo,'fondo');
 
@@ -543,7 +662,7 @@ function buildModel(){
   const nRep=gs.filter(g=>g.rol==='repisa').reduce((a,g)=>a+g.qty,0);
   if(rep && nRep){
     const dRep=Math.min(D, Math.abs(rep.w-Wi)<=Math.abs(rep.h-Wi) ? rep.h : rep.w);
-    const y0=hasPiso?t:0, y1=H-(hasTecho?t:0);
+    const y0=hasPiso?t:sideY0, y1=H-(hasTecho?t:0);
     for(let i=1;i<=nRep;i++) add(t, y0+(y1-y0)*i/(nRep+1), eFondo, Wi, t, dRep,'repisa');
   }
   const zo=gs.find(g=>g.rol==='zocalo');
@@ -562,7 +681,7 @@ function buildModel(){
     const x0 = Math.max(0,(W-nPu*aw)/2);
     for(let i=0;i<nPu;i++) add(x0+i*aw, y0, D, aw, ah, t,'puerta');
   }
-  return {W,H,D,t,parts:P,nRep,nPu,nCaj:cajs.reduce((a,g)=>a+g.qty,0)};
+  return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj:cajs.reduce((a,g)=>a+g.qty,0)};
 }
 function shade(hex,f){
   const m=/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex||'#d9c7a7');
@@ -655,7 +774,7 @@ function draw(res){
     else{
       const detalle=[m.nRep?m.nRep+' repisa'+(m.nRep>1?'s':''):'', m.nPu?m.nPu+' puerta'+(m.nPu>1?'s':''):'',
                      m.nCaj?(m.nCaj>1? m.nCaj+' cajones':'1 cajón'):''].filter(Boolean).join(' · ');
-      html+=`<div class="meta">Exterior ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}</div>
+      html+=`<div class="meta">Exterior ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}<br>${ARMADOS[m.modo]}</div>
         ${modelSvg(m,cfg.color)}`;
     }
     html+=`<details><summary>Cómo se interpretó cada pieza</summary>${rolesUI()}
@@ -760,9 +879,9 @@ let index_ = [];          // [{id, nombre}]
 function setStatus(txt, cls){ const s=$('status'); s.textContent=txt; s.className=cls||''; }
 function snapshot(){
   const c={}; CFGF.forEach(f=>c[f]=$(f).value);
-  return {v:2, name:$('pname').value, cfg:c, rot:$('rot').value, bgrain:$('bgrain').value,
+  return {v:2, name:$('pname').value, cfg:c, rot:$('rot').value, bgrain:$('bgrain').value, armado:$('armado').value,
           ededuct:$('ededuct').checked, color:$('color').value, texmode:$('texmode').value, tex:texURL,
-          roles:roleOverride, pieces};
+          roles:roleOverride, gen:GENF.reduce((o,f)=>(o[f]=$(f).value,o),{}), pieces};
 }
 function restore(d){
   if(!d||!d.pieces){ alert('Archivo de proyecto no válido.'); return; }
@@ -770,6 +889,8 @@ function restore(d){
   CFGF.forEach(f=>{ if(d.cfg&&d.cfg[f]!==undefined) $(f).value=d.cfg[f]; });
   if(d.rot) $('rot').value=d.rot;
   if(d.bgrain) $('bgrain').value=d.bgrain;
+  if(d.armado) $('armado').value=d.armado;
+  if(d.gen) GENF.forEach(f=>{ if(d.gen[f]!==undefined) $(f).value=d.gen[f]; });
   $('ededuct').checked=!!d.ededuct;
   if(d.color) $('color').value=d.color;
   if(d.texmode) $('texmode').value=d.texmode;
@@ -918,7 +1039,7 @@ $('run').onclick=()=>{
   lastResult=r; draw(r);
   document.querySelector('main').scrollIntoView({behavior:'smooth',block:'start'});
 };
-['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
+['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk','armado'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
 
 pieces = DEMO.map(p=>({...p})); render(); initCloud();
 </script>
