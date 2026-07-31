@@ -210,6 +210,20 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
     </div>
     <div class="row"></div>
     <div class="grid2">
+      <div><label>Cuerpos (columnas)</label>
+        <select id="gCuerpos"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
+      <div><label>Cajones en</label>
+        <select id="gCajPos">
+          <option value="abajo">Abajo, bajo las puertas</option>
+          <option value="arriba">Arriba, sobre las puertas</option>
+          <option value="izquierda">Columna izquierda</option>
+          <option value="derecha">Columna derecha</option>
+          <option value="central">Columna central</option>
+          <option value="completo">Todo el frente, sin puertas</option>
+        </select></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid2">
       <div><label>Fondo trasero</label>
         <select id="gFondo">
           <option value="atornillado">Atornillado atrás</option>
@@ -353,7 +367,7 @@ $('cleartex').onclick = ()=>{ texURL=null; $('tex').value=''; if(lastResult) dra
 
 /* ================= Config ================= */
 const CFGF = ['bw','bh','kerf','trim','thk','price','ethk','eprice','ewaste','texsize'];
-const GENF = ['gW','gH','gD','gRep','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas'];
+const GENF = ['gW','gH','gD','gRep','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas','gCuerpos','gCajPos'];
 function readCfg(){
   const c={}; CFGF.forEach(f=>c[f]=+$(f).value||0);
   c.rot=$('rot').value==='1'; c.bgrain=$('bgrain').value;
@@ -540,14 +554,49 @@ function edgeTotals(cfg){
 }
 
 /* ============ Vista isométrica del mueble armado ============ */
-const ROLES={auto:'Detectar solo',costado:'Costado',piso:'Piso',techo:'Techo',pisotecho:'Piso y techo',
-             repisa:'Repisa',puerta:'Puerta',cajon:'Frente de cajón',fondo:'Fondo',zocalo:'Zócalo',otro:'No dibujar'};
+const ROLES={auto:'Detectar solo',costado:'Costado',separador:'Separador de cuerpos',piso:'Piso',techo:'Techo',
+             pisotecho:'Piso y techo',repisa:'Repisa',puerta:'Puerta',cajon:'Frente de cajón',
+             fondo:'Fondo',zocalo:'Zócalo',otro:'No dibujar'};
+
+/* Reparto del frente en columnas (cuerpos) y bandas de cajones/puertas.
+   Devuelve rectángulos en coordenadas del frente: x 0..W, y 0..H desde abajo. */
+function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp){
+  const colW=W/nC, cols=[];
+  for(let i=0;i<nC;i++) cols.push({x:i*colW, w:colW, y0:hZoc, y1:H, caj:0});
+  const dedicada=['izquierda','derecha','central'].includes(pos);
+  let dc=[];
+  if(pos==='izquierda') dc=[0];
+  else if(pos==='derecha') dc=[nC-1];
+  else if(pos==='central') dc=[Math.floor((nC-1)/2)];
+  else dc=cols.map((_,i)=>i);
+  if(nCaj>0) dc.forEach((ci,k)=>cols[ci].caj=Math.floor(nCaj/dc.length)+(k<nCaj%dc.length?1:0));
+
+  const cajones=[], puertas=[];
+  cols.forEach(c=>{
+    const n=c.caj; if(!n) return;
+    const lleno = dedicada || pos==='completo';
+    const h = lleno ? (c.y1-c.y0)/n : Math.min(hCaj||180, (c.y1-c.y0)/n);
+    if(pos==='arriba'){ for(let k=0;k<n;k++) cajones.push({x:c.x,y:c.y1-(k+1)*h,w:c.w,h}); c.y1-=n*h; }
+    else { for(let k=0;k<n;k++) cajones.push({x:c.x,y:c.y0+k*h,w:c.w,h}); c.y0+=n*h; }
+  });
+  const libres=cols.filter(c=>c.y1-c.y0>60);
+  if(nPu>0 && libres.length){
+    libres.forEach((c,i)=>{
+      const k=Math.floor(nPu/libres.length)+(i<nPu%libres.length?1:0);
+      for(let j=0;j<k;j++) puertas.push({x:c.x+j*c.w/k, y:c.y0, w:c.w/k, h:c.y1-c.y0});
+    });
+  }
+  const g=(hp||0)/2, ok=r=>r.w>0&&r.h>0;
+  const sep=r=>({x:r.x+g, y:r.y+g, w:r.w-2*g, h:r.h-2*g});
+  return {cajones:cajones.map(sep).filter(ok), puertas:puertas.map(sep).filter(ok), nC, colW};
+}
 let roleOverride={};
 function detectRole(n){
   const s=String(n).toLowerCase();
   const esCajon=/caj[oó]n|gaveta/.test(s);
   const techo=/tech|cubiert|tapa|superior/.test(s), piso=/piso|base|inferior/.test(s);
   if(esCajon) return /frente|frontal|cara/.test(s) ? 'cajon' : 'otro';
+  if(/separador|tabique|divisi|montante/.test(s)) return 'separador';
   if(/costad|lateral|lado/.test(s)) return 'costado';
   if(techo && piso) return 'pisotecho';
   if(techo) return 'techo';
@@ -586,24 +635,33 @@ function generarPiezas(){
     add('Costado',    H,  D, 2,'fija',1,1);
     add('Piso/Techo', Wi, D, 2,'fija',1,0);
   }
-  if(nRep) add('Repisa', Wi-1, Math.max(80,D-20), nRep,'fija',1,0);
+  // Cuerpos y reparto del frente
+  const nC=+$('gCuerpos').value||1, pos=$('gCajPos').value;
+  if(nC>1) add('Separador', H-2*t, D, nC-1,'fija',1,1);
+  if(nC===1 && ['izquierda','derecha','central'].includes(pos))
+    return alert('Para poner los cajones en una columna necesitas al menos 2 cuerpos.');
+  const colIn=(Wi-(nC-1)*t)/nC;
+  if(nRep) add('Repisa', colIn-1, Math.max(80,D-20), nRep,'fija',1,0);
   if(hZoc>0) add('Zócalo', Wi, hZoc, 1,'libre',1,0);
 
-  // Frentes: los cajones ocupan la parte baja y las puertas el resto
-  const altoCaj=nCaj*hCaj;
-  if(nCaj){
-    add('Cajón frente', W-2*hp, hCaj-hp, nCaj,'fija',2,2);
-    if(conCaja){
-      const anchoCaja=Wi-25, profCaja=Math.max(80,D-40), altoCaja=Math.max(60,hCaj-40);
-      add('Cajón lateral', profCaja, altoCaja, nCaj*2,'libre',1,0);
-      add('Cajón trasera', anchoCaja-2*t, altoCaja, nCaj,'libre',1,0);
-      add('Cajón piso',    anchoCaja-2*t+12, profCaja-6, nCaj,'libre',0,0);
-    }
-  }
-  if(nPu){
-    const aw=(W-(nPu+1)*hp)/nPu, ah=H-hZoc-altoCaj-2*hp;
-    if(ah<=0) return alert('No queda alto para las puertas: los cajones y el zócalo ocupan todo el frente.');
-    add('Puerta', ah, aw, nPu,'fija',2,2);
+  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp);
+  if(nPu && !L.puertas.length) return alert('Con esa distribución no queda espacio para las puertas. Baja la cantidad de cajones o cámbialos de posición.');
+  if(nCaj && !L.cajones.length) return alert('No se pudieron ubicar los cajones con esas medidas.');
+  // agrupar frentes iguales en una sola fila
+  const juntar=(rects,nombre,vertical,ca,ch)=>{
+    const m=new Map();
+    rects.forEach(r=>{ const w=Math.round(vertical?r.h:r.w), h=Math.round(vertical?r.w:r.h);
+      const k=w+'x'+h; m.set(k,(m.get(k)||0)+1); });
+    [...m].forEach(([k,q],i)=>{ const [w,h]=k.split('x').map(Number);
+      add(nombre+(m.size>1?' '+(i+1):''), w, h, q,'fija',ca,ch); });
+  };
+  juntar(L.cajones,'Cajón frente',false,2,2);
+  juntar(L.puertas,'Puerta',true,2,2);
+  if(nCaj && conCaja){
+    const anchoCaja=(L.cajones[0]?L.cajones[0].w:colIn)-25, profCaja=Math.max(80,D-40), altoCaja=Math.max(60,hCaj-40);
+    add('Cajón lateral', profCaja, altoCaja, nCaj*2,'libre',1,0);
+    add('Cajón trasera', anchoCaja-2*t, altoCaja, nCaj,'libre',1,0);
+    add('Cajón piso',    anchoCaja-2*t+12, profCaja-6, nCaj,'libre',0,0);
   }
   if(tFondo==='atornillado') add('Fondo', H, W, 1,'fija',0,0);
   else if(tFondo==='encajado') add('Fondo', H-2*t+12, Wi+12, 1,'fija',0,0);
@@ -658,30 +716,33 @@ function buildModel(){
   const fondo=gs.find(g=>g.rol==='fondo'), eFondo=fondo?Math.max(4,t/3):0;
   if(fondo) add(0,0,0,W,H,eFondo,'fondo');
 
+  // Cuerpos: los separadores dividen el interior en columnas
+  const nSep=gs.filter(g=>g.rol==='separador').reduce((a,g)=>a+g.qty,0);
+  const nC=nSep+1, colIn=(Wi-nSep*t)/nC;
+  const yInf=hasPiso?t:sideY0, ySup=H-(hasTecho?t:0);
+  for(let i=1;i<=nSep;i++) add(t+i*colIn+(i-1)*t, yInf, 0, t, ySup-yInf, D,'costado');
+
   const rep=gs.find(g=>g.rol==='repisa');
   const nRep=gs.filter(g=>g.rol==='repisa').reduce((a,g)=>a+g.qty,0);
   if(rep && nRep){
-    const dRep=Math.min(D, Math.abs(rep.w-Wi)<=Math.abs(rep.h-Wi) ? rep.h : rep.w);
-    const y0=hasPiso?t:sideY0, y1=H-(hasTecho?t:0);
-    for(let i=1;i<=nRep;i++) add(t, y0+(y1-y0)*i/(nRep+1), eFondo, Wi, t, dRep,'repisa');
+    const dRep=Math.min(D, Math.abs(rep.w-colIn)<=Math.abs(rep.h-colIn) ? rep.h : rep.w);
+    for(let c=0;c<nC;c++){
+      const k=Math.floor(nRep/nC)+(c<nRep%nC?1:0);
+      for(let i=1;i<=k;i++) add(t+c*(colIn+t), yInf+(ySup-yInf)*i/(k+1), eFondo, colIn, t, dRep,'repisa');
+    }
   }
-  const zo=gs.find(g=>g.rol==='zocalo');
-  let stack=0;
-  if(zo){ stack=Math.min(zo.w,zo.h); add(t,0,D,Wi,stack,t,'zocalo'); }
+  const zo=gs.find(g=>g.rol==='zocalo'), hZoc=zo?Math.min(zo.w,zo.h):0;
+  if(zo) add(t,0,D,Wi,hZoc,t,'zocalo');
 
-  const cajs=gs.filter(g=>g.rol==='cajon');
-  cajs.forEach(g=>{ const aw=Math.max(g.w,g.h), ah=Math.min(g.w,g.h);
-    for(let k=0;k<g.qty;k++){ add((W-aw)/2, stack+3, D, aw, ah, t,'cajon'); stack+=ah+3; } });
+  const cajs=gs.filter(g=>g.rol==='cajon'), nCaj=cajs.reduce((a,g)=>a+g.qty,0);
+  const pus=gs.filter(g=>g.rol==='puerta'), nPu=pus.reduce((a,g)=>a+g.qty,0);
+  const hCaj=cajs.length?Math.min(cajs[0].w,cajs[0].h):0;
+  const pos=$('gCajPos')?$('gCajPos').value:'abajo';
+  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,+($('gHol')||{value:3}).value||0);
+  L.cajones.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'cajon'));
+  L.puertas.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'puerta'));
 
-  const pus=gs.filter(g=>g.rol==='puerta');
-  const nPu=pus.reduce((a,g)=>a+g.qty,0);
-  if(nPu){
-    const g=pus[0], ah=Math.max(g.w,g.h), aw=Math.min(g.w,g.h);
-    const y0 = cajs.length ? Math.min(stack+4, Math.max(0,H-ah)) : Math.max(0,(H-ah)/2);
-    const x0 = Math.max(0,(W-nPu*aw)/2);
-    for(let i=0;i<nPu;i++) add(x0+i*aw, y0, D, aw, ah, t,'puerta');
-  }
-  return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj:cajs.reduce((a,g)=>a+g.qty,0)};
+  return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj,nC,pos};
 }
 function shade(hex,f){
   const m=/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex||'#d9c7a7');
@@ -797,7 +858,10 @@ function draw(res){
     else{
       const detalle=[m.nRep?m.nRep+' repisa'+(m.nRep>1?'s':''):'', m.nPu?m.nPu+' puerta'+(m.nPu>1?'s':''):'',
                      m.nCaj?(m.nCaj>1? m.nCaj+' cajones':'1 cajón'):''].filter(Boolean).join(' · ');
-      html+=`<div class="meta">Exterior ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}<br>${ARMADOS[m.modo]}</div>
+      const POSTXT={abajo:'cajones abajo',arriba:'cajones arriba',izquierda:'cajones en la columna izquierda',
+                    derecha:'cajones en la columna derecha',central:'cajones en la columna central',completo:'cajones en todo el frente'};
+      html+=`<div class="meta">Exterior ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}
+        <br>${ARMADOS[m.modo]}${m.nC>1?' · '+m.nC+' cuerpos':''}${m.nCaj?' · '+POSTXT[m.pos]:''}</div>
         ${modelSvg(m,cfg.color)}`;
     }
     html+=`<details><summary>Cómo se interpretó cada pieza</summary>${rolesUI()}
@@ -1062,7 +1126,7 @@ $('run').onclick=()=>{
   lastResult=r; draw(r);
   document.querySelector('main').scrollIntoView({behavior:'smooth',block:'start'});
 };
-['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk','armado'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
+['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk','armado','gCajPos','gHol'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
 
 pieces = DEMO.map(p=>({...p})); render(); initCloud();
 </script>
