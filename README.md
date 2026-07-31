@@ -7,6 +7,7 @@ App web para cubicar tableros de melamina: optimiza los cortes respetando la **v
 - Tablero configurable: largo, ancho, espesor, kerf, refile de borde y precio.
 - Veta del tablero (X o Y) y por pieza: **fija** (no rota) o **libre** (puede girar 90°).
 - Optimización: prueba 16 estrategias distintas (guillotina con 3 criterios de ajuste × 5 ordenamientos, más empaque por niveles) y se queda con la mejor. Todos los cortes son ejecutables en sierra de panel.
+- Vista isométrica del mueble armado, deducida de los nombres de las piezas (costado, piso, techo, repisa, puerta, cajón, fondo, zócalo), con el rol de cada pieza corregible a mano.
 - Tapacantos: cantos por borde, metros netos, metros con merma y costo.
 - Post-proceso: secuencia paso a paso de cortes con la medida exacta en cada eje, numerada sobre el plano.
 - Color sólido o foto del tablero como textura, dibujada continua sobre la plancha.

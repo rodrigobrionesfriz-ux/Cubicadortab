@@ -227,6 +227,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
     <button class="ghost" id="print">Imprimir / PDF</button>
     <button class="ghost" id="csv">CSV lista de cortes</button>
     <button class="ghost" id="csv2">CSV secuencia de sierra</button>
+    <label><input type="checkbox" id="showmodel" checked>Ver mueble armado</label>
     <label><input type="checkbox" id="showseq" checked>Ver secuencia de corte</label>
     <label><input type="checkbox" id="showedge" checked>Ver tapacantos</label>
   </div>
@@ -494,6 +495,130 @@ function edgeTotals(cfg){
   return {rows, m, mw, cost:mw*cfg.eprice};
 }
 
+/* ============ Vista isométrica del mueble armado ============ */
+const ROLES={auto:'Detectar solo',costado:'Costado',piso:'Piso',techo:'Techo',pisotecho:'Piso y techo',
+             repisa:'Repisa',puerta:'Puerta',cajon:'Frente de cajón',fondo:'Fondo',zocalo:'Zócalo',otro:'No dibujar'};
+let roleOverride={};
+function detectRole(n){
+  const s=String(n).toLowerCase();
+  const esCajon=/caj[oó]n|gaveta/.test(s);
+  const techo=/tech|cubiert|tapa|superior/.test(s), piso=/piso|base|inferior/.test(s);
+  if(esCajon && /frente|frontal|cara/.test(s)) return 'cajon';
+  if(/costad|lateral|lado/.test(s) && !esCajon) return 'costado';
+  if(techo && piso) return 'pisotecho';
+  if(techo) return 'techo';
+  if(piso) return 'piso';
+  if(/repis|estant|balda|entrepa/.test(s)) return 'repisa';
+  if(/puerta|hoja/.test(s)) return 'puerta';
+  if(/fondo|trasera|espald|respald/.test(s)) return 'fondo';
+  if(/z[oó]calo|pedestal/.test(s)) return 'zocalo';
+  return 'otro';
+}
+function roleOf(p){ const o=roleOverride[p.name]; return (o && o!=='auto') ? o : detectRole(p.name); }
+
+function buildModel(){
+  const t=+$('thk').value||18;
+  const gs=pieces.filter(p=>+p.qty>0).map(p=>({...p, w:+p.w, h:+p.h, qty:+p.qty, rol:roleOf(p)}));
+  const has=r=>gs.some(g=>g.rol===r);
+  const cos=gs.find(g=>g.rol==='costado');
+  if(!cos) return {err:'No identifico los costados. Abre «Cómo se interpretó cada pieza» y marca cuál es el Costado.'};
+  const H=Math.max(cos.w,cos.h), D=Math.min(cos.w,cos.h);
+  const h0=gs.find(g=>['piso','techo','pisotecho'].includes(g.rol)) || gs.find(g=>g.rol==='repisa');
+  let Wi=null;
+  if(h0) Wi = Math.abs(h0.w-D)<=Math.abs(h0.h-D) ? h0.h : h0.w;
+  else { const f=gs.find(g=>g.rol==='fondo'); if(f) Wi = Math.abs(f.w-H)<=Math.abs(f.h-H) ? f.h : f.w; }
+  if(!Wi || Wi<=0) return {err:'No identifico el piso, el techo ni una repisa, así que no puedo deducir el ancho del mueble.'};
+  const W=Wi+2*t;
+
+  const P=[];
+  const add=(x,y,z,w,h,d,tipo)=>{ if(w>0&&h>0&&d>0) P.push({x,y,z,w,h,d,tipo}); };
+  add(0,0,0,t,H,D,'costado'); add(W-t,0,0,t,H,D,'costado');
+  const hasPiso=has('piso')||has('pisotecho'), hasTecho=has('techo')||has('pisotecho');
+  if(hasPiso)  add(t,0,0,Wi,t,D,'horiz');
+  if(hasTecho) add(t,H-t,0,Wi,t,D,'horiz');
+  const fondo=gs.find(g=>g.rol==='fondo'), eFondo=fondo?Math.max(4,t/3):0;
+  if(fondo) add(0,0,0,W,H,eFondo,'fondo');
+
+  const rep=gs.find(g=>g.rol==='repisa');
+  const nRep=gs.filter(g=>g.rol==='repisa').reduce((a,g)=>a+g.qty,0);
+  if(rep && nRep){
+    const dRep=Math.min(D, Math.abs(rep.w-Wi)<=Math.abs(rep.h-Wi) ? rep.h : rep.w);
+    const y0=hasPiso?t:0, y1=H-(hasTecho?t:0);
+    for(let i=1;i<=nRep;i++) add(t, y0+(y1-y0)*i/(nRep+1), eFondo, Wi, t, dRep,'repisa');
+  }
+  const zo=gs.find(g=>g.rol==='zocalo');
+  let stack=0;
+  if(zo){ stack=Math.min(zo.w,zo.h); add(t,0,D,Wi,stack,t,'zocalo'); }
+
+  const cajs=gs.filter(g=>g.rol==='cajon');
+  cajs.forEach(g=>{ const aw=Math.max(g.w,g.h), ah=Math.min(g.w,g.h);
+    for(let k=0;k<g.qty;k++){ add((W-aw)/2, stack+3, D, aw, ah, t,'cajon'); stack+=ah+3; } });
+
+  const pus=gs.filter(g=>g.rol==='puerta');
+  const nPu=pus.reduce((a,g)=>a+g.qty,0);
+  if(nPu){
+    const g=pus[0], ah=Math.max(g.w,g.h), aw=Math.min(g.w,g.h);
+    const y0 = cajs.length ? Math.min(stack+4, Math.max(0,H-ah)) : Math.max(0,(H-ah)/2);
+    const x0 = Math.max(0,(W-nPu*aw)/2);
+    for(let i=0;i<nPu;i++) add(x0+i*aw, y0, D, aw, ah, t,'puerta');
+  }
+  return {W,H,D,t,parts:P,nRep,nPu,nCaj:cajs.reduce((a,g)=>a+g.qty,0)};
+}
+function shade(hex,f){
+  const m=/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex||'#d9c7a7');
+  if(!m) return hex;
+  const v=[1,2,3].map(i=>Math.max(0,Math.min(255,Math.round(parseInt(m[i],16)*f))));
+  return 'rgb('+v.join(',')+')';
+}
+function modelSvg(m,color){
+  const c=Math.cos(Math.PI/6), s=Math.sin(Math.PI/6);
+  const iso=(x,y,z)=>[(x-z)*c,(x+z)*s-y];
+  const pts=[];
+  m.parts.forEach(b=>[[0,0,0],[b.w,0,0],[0,b.h,0],[0,0,b.d],[b.w,b.h,0],[b.w,0,b.d],[0,b.h,b.d],[b.w,b.h,b.d]]
+    .forEach(o=>pts.push(iso(b.x+o[0],b.y+o[1],b.z+o[2]))));
+  if(!pts.length) return '';
+  const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+  const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  const pad=(x1-x0)*0.06+60, sw=(x1-x0)/500;
+  // pintor: la cámara mira desde (1,1,1), así que lo más lejano se dibuja primero
+  const orden=[...m.parts].sort((a,b)=>(a.x+a.y+a.z+(a.w+a.h+a.d)/2)-(b.x+b.y+b.z+(b.w+b.h+b.d)/2));
+  const cuerpo=orden.map(b=>{
+    const p=(X,Y,Z)=>iso(b.x+X,b.y+Y,b.z+Z).join(',');
+    const frente=`M${p(0,0,b.d)} L${p(b.w,0,b.d)} L${p(b.w,b.h,b.d)} L${p(0,b.h,b.d)} Z`;
+    const arriba=`M${p(0,b.h,b.d)} L${p(b.w,b.h,b.d)} L${p(b.w,b.h,0)} L${p(0,b.h,0)} Z`;
+    const lado  =`M${p(b.w,0,b.d)} L${p(b.w,0,0)} L${p(b.w,b.h,0)} L${p(b.w,b.h,b.d)} Z`;
+    const op = (b.tipo==='puerta'||b.tipo==='cajon') ? ' opacity=".68"' : '';
+    return `<g${op} stroke="rgba(0,0,0,.45)" stroke-width="${sw}" stroke-linejoin="round">
+      <path d="${frente}" fill="${shade(color,1)}"/><path d="${arriba}" fill="${shade(color,1.22)}"/><path d="${lado}" fill="${shade(color,.72)}"/></g>`;
+  }).join('');
+  const fs=(x1-x0)/26;
+  const cota=(a,b2,txt)=>{ const A=iso(...a), B=iso(...b2);
+    return `<g stroke="#7f8ba3" stroke-width="${sw*1.2}" fill="none">
+      <line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}"/></g>
+      <text x="${(A[0]+B[0])/2}" y="${(A[1]+B[1])/2-fs*.35}" font-size="${fs}" fill="#9aa4b8" text-anchor="middle">${txt}</text>`;
+  };
+  const off=m.D*0.28;
+  return `<svg viewBox="${x0-pad} ${y0-pad*1.1} ${x1-x0+2*pad} ${y1-y0+2.1*pad}" xmlns="http://www.w3.org/2000/svg">
+    ${cuerpo}
+    ${cota([0,-off,m.D+off],[m.W,-off,m.D+off], fmt(m.W)+' mm')}
+    ${cota([m.W+off,0,m.D+off],[m.W+off,m.H,m.D+off], fmt(m.H)+' mm')}
+    ${cota([m.W+off,-off,0],[m.W+off,-off,m.D], fmt(m.D)+' mm')}
+  </svg>`;
+}
+function rolesUI(){
+  return `<div class="scrollx"><table class="lst"><thead><tr><th>Pieza</th><th>Medida</th><th>Cant</th><th>Rol en el mueble</th></tr></thead><tbody>
+    ${pieces.map(p=>{ const act=roleOverride[p.name]||'auto';
+      return `<tr><td>${esc(p.name)}</td><td>${fmt(p.w)} × ${fmt(p.h)}</td><td>${p.qty}</td>
+      <td><select data-role="${esc(p.name)}">${Object.keys(ROLES).map(k=>
+        `<option value="${k}"${act===k?' selected':''}>${ROLES[k]}${k==='auto'?' → '+ROLES[detectRole(p.name)]:''}</option>`).join('')}</select></td></tr>`;
+    }).join('')}
+  </tbody></table></div>`;
+}
+$('out').addEventListener('change', e=>{
+  const n=e.target.dataset.role;
+  if(n!==undefined){ roleOverride[n]=e.target.value; if(lastResult) draw(lastResult); }
+});
+
 /* ================= Render ================= */
 function fmt(n){ return Math.round(n).toLocaleString('es-CL'); }
 function f1(n){ return n.toLocaleString('es-CL',{maximumFractionDigits:1}); }
@@ -522,6 +647,20 @@ function draw(res){
     ${cfg.eprice>0?`<div class="stat"><span>Costo canto</span><b>$${fmt(res.edge.cost)}</b></div>`:''}
     ${(cfg.price>0||cfg.eprice>0)?`<div class="stat"><span>Total materiales</span><b>$${fmt(res.sheets.length*cfg.price+res.edge.cost)}</b></div>`:''}
   </div>`;
+
+  if($('showmodel').checked){
+    const m=buildModel();
+    html+=`<div class="sheet"><h3>Vista del mueble armado</h3>`;
+    if(m.err) html+=`<div class="meta" style="color:var(--warn)">${m.err}</div>`;
+    else{
+      const detalle=[m.nRep?m.nRep+' repisa'+(m.nRep>1?'s':''):'', m.nPu?m.nPu+' puerta'+(m.nPu>1?'s':''):'',
+                     m.nCaj?(m.nCaj>1? m.nCaj+' cajones':'1 cajón'):''].filter(Boolean).join(' · ');
+      html+=`<div class="meta">Exterior ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}</div>
+        ${modelSvg(m,cfg.color)}`;
+    }
+    html+=`<details><summary>Cómo se interpretó cada pieza</summary>${rolesUI()}
+      <div class="hint">Vista referencial armada a partir del nombre de cada pieza. Si algo quedó en el lugar equivocado, corrige su rol aquí. Las puertas y frentes se dibujan translúcidos para ver el interior.</div></details></div>`;
+  }
 
   if(res.edge.rows.length){
     html+=`<div class="sheet"><h3>Tapacantos</h3>
@@ -622,7 +761,8 @@ function setStatus(txt, cls){ const s=$('status'); s.textContent=txt; s.classNam
 function snapshot(){
   const c={}; CFGF.forEach(f=>c[f]=$(f).value);
   return {v:2, name:$('pname').value, cfg:c, rot:$('rot').value, bgrain:$('bgrain').value,
-          ededuct:$('ededuct').checked, color:$('color').value, texmode:$('texmode').value, tex:texURL, pieces};
+          ededuct:$('ededuct').checked, color:$('color').value, texmode:$('texmode').value, tex:texURL,
+          roles:roleOverride, pieces};
 }
 function restore(d){
   if(!d||!d.pieces){ alert('Archivo de proyecto no válido.'); return; }
@@ -633,7 +773,8 @@ function restore(d){
   $('ededuct').checked=!!d.ededuct;
   if(d.color) $('color').value=d.color;
   if(d.texmode) $('texmode').value=d.texmode;
-  texURL=d.tex||null; pieces=(d.pieces||[]).map(p=>({ca:0,ch:0,...p})); render(); lastResult=null;
+  texURL=d.tex||null; roleOverride=d.roles||{};
+  pieces=(d.pieces||[]).map(p=>({ca:0,ch:0,...p})); render(); lastResult=null;
   $('out').innerHTML='<div class="empty">Proyecto cargado. Presiona <b>Cubicar y optimizar</b>.</div>';
 }
 function localDB(){ try{ return JSON.parse(localStorage.getItem(LKEY)||'{}'); }catch(e){ return {}; } }
@@ -777,7 +918,7 @@ $('run').onclick=()=>{
   lastResult=r; draw(r);
   document.querySelector('main').scrollIntoView({behavior:'smooth',block:'start'});
 };
-['color','texmode','texsize','bgrain','showseq','showedge'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
+['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
 
 pieces = DEMO.map(p=>({...p})); render(); initCloud();
 </script>
