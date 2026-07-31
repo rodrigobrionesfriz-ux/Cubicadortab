@@ -689,6 +689,30 @@ function shade(hex,f){
   const v=[1,2,3].map(i=>Math.max(0,Math.min(255,Math.round(parseInt(m[i],16)*f))));
   return 'rgb('+v.join(',')+')';
 }
+/* Orden del pintor exacto para cajas alineadas a los ejes: con la cámara en
+   (1,1,1), si existe un plano perpendicular a X, Y o Z que separa dos piezas,
+   la que queda del lado positivo tapa a la otra. Con eso se arma un orden
+   parcial y se recorre topológicamente; el centroide solo desempata. */
+function ordenarPintor(parts){
+  const n=parts.length, E=1e-6;
+  const tapa=(A,B)=> (A.x>=B.x+B.w-E) || (A.y>=B.y+B.h-E) || (A.z>=B.z+B.d-E);
+  const luego=parts.map(()=>[]), grado=parts.map(()=>0);
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    if(i===j) continue;
+    if(tapa(parts[i],parts[j]) && !tapa(parts[j],parts[i])){ luego[j].push(i); grado[i]++; }
+  }
+  const k=p=>p.x+p.y+p.z+(p.w+p.h+p.d)/2;
+  const listos=parts.map((_,i)=>i).filter(i=>!grado[i]);
+  const out=[], visto=new Set();
+  while(listos.length){
+    listos.sort((a,b)=>k(parts[a])-k(parts[b]));
+    const i=listos.shift(); out.push(parts[i]); visto.add(i);
+    luego[i].forEach(j=>{ if(--grado[j]===0) listos.push(j); });
+  }
+  // por si quedara un ciclo (piezas que se interpenetran), se agregan al final
+  parts.forEach((p,i)=>{ if(!visto.has(i)) out.push(p); });
+  return out;
+}
 function modelSvg(m,color){
   const c=Math.cos(Math.PI/6), s=Math.sin(Math.PI/6);
   const iso=(x,y,z)=>[(x-z)*c,(x+z)*s-y];
@@ -699,8 +723,7 @@ function modelSvg(m,color){
   const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
   const x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
   const pad=(x1-x0)*0.06+60, sw=(x1-x0)/500;
-  // pintor: la cámara mira desde (1,1,1), así que lo más lejano se dibuja primero
-  const orden=[...m.parts].sort((a,b)=>(a.x+a.y+a.z+(a.w+a.h+a.d)/2)-(b.x+b.y+b.z+(b.w+b.h+b.d)/2));
+  const orden=ordenarPintor(m.parts);
   const cuerpo=orden.map(b=>{
     const p=(X,Y,Z)=>iso(b.x+X,b.y+Y,b.z+Z).join(',');
     const frente=`M${p(0,0,b.d)} L${p(b.w,0,b.d)} L${p(b.w,b.h,b.d)} L${p(0,b.h,b.d)} Z`;
