@@ -198,17 +198,34 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
     </div>
     <div class="row"></div>
     <div class="grid3">
-      <div><label>Repisas</label><input id="gRep" type="number" value="4" min="0"></div>
+      <div><label>Instalación</label>
+        <select id="gInst"><option value="piso">A piso</option><option value="colgado">Colgado (mural)</option></select></div>
       <div><label>Puertas</label><input id="gPu" type="number" value="2" min="0"></div>
       <div><label>Cajones</label><input id="gCaj" type="number" value="0" min="0"></div>
     </div>
     <div class="row"></div>
     <div class="grid3">
       <div><label>Alto de cajón</label><input id="gCajH" type="number" value="180" min="40"></div>
-      <div><label>Zócalo (0 = sin)</label><input id="gZoc" type="number" value="0" min="0"></div>
+      <div><label>Alto base / zócalo</label><input id="gZoc" type="number" value="0" min="0"></div>
       <div><label>Holgura puertas</label><input id="gHol" type="number" value="3" min="0" step="0.5"></div>
     </div>
     <div class="row"></div>
+    <div class="grid3">
+      <div><label>Base</label>
+        <select id="gBase">
+          <option value="no">Sin base</option>
+          <option value="frente">Tapa-zócalo al frente</option>
+          <option value="base">Base separada (marco)</option>
+        </select></div>
+      <div><label>Retiro del zócalo</label><input id="gRetiro" type="number" value="50" min="0"></div>
+      <div><label>Travesaños</label>
+        <select id="gTrav"><option value="0">Sin travesaños</option><option value="2">2 de colgado</option></select></div>
+    </div>
+    <div class="row"></div>
+    <div class="row">
+      <label>Repisas por cuerpo</label>
+      <div id="repCols" class="grid4"></div>
+    </div>
     <div class="grid2">
       <div><label>Cuerpos (columnas)</label>
         <select id="gCuerpos"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
@@ -234,7 +251,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
         <select id="gCajas"><option value="0">Solo los frentes</option><option value="1">Incluir la caja</option></select></div>
     </div>
     <button id="gen" style="margin-top:11px">Generar lista de piezas</button>
-    <div class="hint">Usa el espesor y el <b>armado</b> de la tarjeta Tablero para repartir las medidas. Genera la lista de abajo, que después puedes editar a mano pieza por pieza.</div>
+    <div class="hint">Usa el espesor y el <b>armado</b> de la tarjeta Tablero. El <b>alto exterior</b> es el del cuerpo: si eliges base separada, esa altura se suma aparte. Genera la lista de abajo, que después puedes editar pieza por pieza.</div>
   </div>
 
   <div class="card">
@@ -367,7 +384,8 @@ $('cleartex').onclick = ()=>{ texURL=null; $('tex').value=''; if(lastResult) dra
 
 /* ================= Config ================= */
 const CFGF = ['bw','bh','kerf','trim','thk','price','ethk','eprice','ewaste','texsize'];
-const GENF = ['gW','gH','gD','gRep','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas','gCuerpos','gCajPos'];
+const GENF = ['gW','gH','gD','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas','gCuerpos','gCajPos',
+              'gInst','gBase','gRetiro','gTrav'];
 function readCfg(){
   const c={}; CFGF.forEach(f=>c[f]=+$(f).value||0);
   c.rot=$('rot').value==='1'; c.bgrain=$('bgrain').value;
@@ -556,7 +574,16 @@ function edgeTotals(cfg){
 /* ============ Vista isométrica del mueble armado ============ */
 const ROLES={auto:'Detectar solo',costado:'Costado',separador:'Separador de cuerpos',piso:'Piso',techo:'Techo',
              pisotecho:'Piso y techo',repisa:'Repisa',puerta:'Puerta',cajon:'Frente de cajón',
-             fondo:'Fondo',zocalo:'Zócalo',otro:'No dibujar'};
+             fondo:'Fondo',zocalo:'Zócalo',base:'Base separada',travesano:'Travesaño de colgado',otro:'No dibujar'};
+
+/* Repisas: una cantidad por cuerpo */
+function renderRepCols(){
+  const n=+($('gCuerpos')||{value:1}).value||1, prev=repPorCuerpo();
+  $('repCols').style.gridTemplateColumns='repeat('+n+',1fr)';
+  $('repCols').innerHTML=Array.from({length:n},(_,i)=>
+    `<input class="rc" type="number" min="0" value="${prev[i]!==undefined?prev[i]:(i===0?4:0)}" title="Repisas en el cuerpo ${i+1}">`).join('');
+}
+function repPorCuerpo(){ return [...document.querySelectorAll('#repCols .rc')].map(i=>Math.max(0,+i.value||0)); }
 
 /* Reparto del frente en columnas (cuerpos) y bandas de cajones/puertas.
    Devuelve rectángulos en coordenadas del frente: x 0..W, y 0..H desde abajo. */
@@ -596,6 +623,8 @@ function detectRole(n){
   const esCajon=/caj[oó]n|gaveta/.test(s);
   const techo=/tech|cubiert|tapa|superior/.test(s), piso=/piso|base|inferior/.test(s);
   if(esCajon) return /frente|frontal|cara/.test(s) ? 'cajon' : 'otro';
+  if(/\bbase\b/.test(s)) return 'base';
+  if(/travesa|colgador|riel/.test(s)) return 'travesano';
   if(/separador|tabique|divisi|montante/.test(s)) return 'separador';
   if(/costad|lateral|lado/.test(s)) return 'costado';
   if(techo && piso) return 'pisotecho';
@@ -615,9 +644,14 @@ function generarPiezas(){
   const W=+$('gW').value, H=+$('gH').value, D=+$('gD').value;
   if(!(W>0&&H>0&&D>0)) return alert('Completa ancho, alto y fondo del mueble.');
   if(W<=2*t+20 || H<=2*t+20) return alert('El mueble es demasiado chico para ese espesor de tablero.');
-  const nRep=+$('gRep').value||0, nPu=+$('gPu').value||0, nCaj=+$('gCaj').value||0;
-  const hCaj=+$('gCajH').value||180, hZoc=+$('gZoc').value||0, hp=+$('gHol').value||0;
+  const reps=repPorCuerpo(), nRep=reps.reduce((a,b)=>a+b,0);
+  const nPu=+$('gPu').value||0, nCaj=+$('gCaj').value||0;
+  const hCaj=+$('gCajH').value||180, hp=+$('gHol').value||0;
   const conCaja=$('gCajas').value==='1', tFondo=$('gFondo').value;
+  const inst=$('gInst').value, colgado=inst==='colgado';
+  const tipoBase=colgado?'no':$('gBase').value, hB=+$('gZoc').value||0;
+  const retiro=+$('gRetiro').value||0, nTrav=colgado?(+$('gTrav').value||0):0;
+  const hZoc=(tipoBase==='frente')?hB:0;   // solo el tapa-zócalo ocupa frente del cuerpo
   const Wi=W-2*t;                       // ancho libre entre costados
   const P=[];
   const add=(name,w,h,qty,grain,ca,ch)=>{ w=Math.round(w); h=Math.round(h);
@@ -641,8 +675,18 @@ function generarPiezas(){
   if(nC===1 && ['izquierda','derecha','central'].includes(pos))
     return alert('Para poner los cajones en una columna necesitas al menos 2 cuerpos.');
   const colIn=(Wi-(nC-1)*t)/nC;
+  if(reps.length>nC && reps.slice(nC).some(v=>v>0))
+    return alert('Hay repisas asignadas a cuerpos que ya no existen. Ajusta las cantidades por cuerpo.');
   if(nRep) add('Repisa', colIn-1, Math.max(80,D-20), nRep,'fija',1,0);
-  if(hZoc>0) add('Zócalo', Wi, hZoc, 1,'libre',1,0);
+
+  // Base / zócalo
+  if(tipoBase==='frente' && hB>0) add('Zócalo', Wi, hB, 1,'libre',1,0);
+  else if(tipoBase==='base' && hB>0){
+    const dB=Math.max(100, D-retiro);
+    add('Base costado', dB, hB, 2,'libre',1,0);
+    add('Base larguero', W-2*t, hB, 2,'libre',1,0);
+  }
+  if(nTrav) add('Travesaño', Wi, 100, nTrav,'libre',1,0);
 
   const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp);
   if(nPu && !L.puertas.length) return alert('Con esa distribución no queda espacio para las puertas. Baja la cantidad de cajones o cámbialos de posición.');
@@ -726,13 +770,37 @@ function buildModel(){
   const nRep=gs.filter(g=>g.rol==='repisa').reduce((a,g)=>a+g.qty,0);
   if(rep && nRep){
     const dRep=Math.min(D, Math.abs(rep.w-colIn)<=Math.abs(rep.h-colIn) ? rep.h : rep.w);
+    // si los campos «repisas por cuerpo» cuadran con el total, se respetan
+    const decl=repPorCuerpo();
+    const usa = (decl.length===nC && decl.reduce((a,b)=>a+b,0)===nRep)
+      ? decl : Array.from({length:nC},(_,c)=>Math.floor(nRep/nC)+(c<nRep%nC?1:0));
     for(let c=0;c<nC;c++){
-      const k=Math.floor(nRep/nC)+(c<nRep%nC?1:0);
+      const k=usa[c]||0;
       for(let i=1;i<=k;i++) add(t+c*(colIn+t), yInf+(ySup-yInf)*i/(k+1), eFondo, colIn, t, dRep,'repisa');
     }
   }
   const zo=gs.find(g=>g.rol==='zocalo'), hZoc=zo?Math.min(zo.w,zo.h):0;
   if(zo) add(t,0,D,Wi,hZoc,t,'zocalo');
+
+  // Base separada: marco bajo el cuerpo, dibujado con y negativo
+  const bs=gs.filter(g=>g.rol==='base');
+  let hBase=0;
+  if(bs.length){
+    hBase=Math.min(...bs.map(g=>Math.min(g.w,g.h)));
+    const dBase=Math.min(...bs.map(g=>Math.max(g.w,g.h)));
+    const zf=Math.max(t, Math.min(D, dBase));
+    add(0,-hBase,0,t,hBase,zf,'base'); add(W-t,-hBase,0,t,hBase,zf,'base');
+    add(t,-hBase,zf-t,W-2*t,hBase,t,'base'); add(t,-hBase,0,W-2*t,hBase,t,'base');
+  }
+  // Travesaños de colgado, al fondo del cuerpo
+  const tr=gs.filter(g=>g.rol==='travesano'), nTr=tr.reduce((a,g)=>a+g.qty,0);
+  if(nTr){
+    const hTr=Math.min(...tr.map(g=>Math.min(g.w,g.h)));
+    for(let i=0;i<nTr;i++){
+      const y = (i===0) ? ySup-t-hTr : yInf+t;
+      add(t, y, eFondo, Wi, hTr, t, 'travesano');
+    }
+  }
 
   const cajs=gs.filter(g=>g.rol==='cajon'), nCaj=cajs.reduce((a,g)=>a+g.qty,0);
   const pus=gs.filter(g=>g.rol==='puerta'), nPu=pus.reduce((a,g)=>a+g.qty,0);
@@ -742,7 +810,8 @@ function buildModel(){
   L.cajones.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'cajon'));
   L.puertas.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'puerta'));
 
-  return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj,nC,pos};
+  return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj,nC,pos,hBase,nTr,
+          inst:($('gInst')?$('gInst').value:'piso')};
 }
 function shade(hex,f){
   const m=/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex||'#d9c7a7');
@@ -860,8 +929,9 @@ function draw(res){
                      m.nCaj?(m.nCaj>1? m.nCaj+' cajones':'1 cajón'):''].filter(Boolean).join(' · ');
       const POSTXT={abajo:'cajones abajo',arriba:'cajones arriba',izquierda:'cajones en la columna izquierda',
                     derecha:'cajones en la columna derecha',central:'cajones en la columna central',completo:'cajones en todo el frente'};
-      html+=`<div class="meta">Exterior ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}
-        <br>${ARMADOS[m.modo]}${m.nC>1?' · '+m.nC+' cuerpos':''}${m.nCaj?' · '+POSTXT[m.pos]:''}</div>
+      html+=`<div class="meta">Cuerpo ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}
+        ${m.hBase?`<br>Base separada de ${fmt(m.hBase)} mm — <b>altura total ${fmt(m.H+m.hBase)} mm</b>`:''}
+        <br>${ARMADOS[m.modo]}${m.nC>1?' · '+m.nC+' cuerpos':''}${m.nCaj?' · '+POSTXT[m.pos]:''}${m.inst==='colgado'?' · mueble colgado':''}${m.nTr?' · '+m.nTr+' travesaños':''}</div>
         ${modelSvg(m,cfg.color)}`;
     }
     html+=`<details><summary>Cómo se interpretó cada pieza</summary>${rolesUI()}
@@ -968,7 +1038,7 @@ function snapshot(){
   const c={}; CFGF.forEach(f=>c[f]=$(f).value);
   return {v:2, name:$('pname').value, cfg:c, rot:$('rot').value, bgrain:$('bgrain').value, armado:$('armado').value,
           ededuct:$('ededuct').checked, color:$('color').value, texmode:$('texmode').value, tex:texURL,
-          roles:roleOverride, gen:GENF.reduce((o,f)=>(o[f]=$(f).value,o),{}), pieces};
+          roles:roleOverride, gen:GENF.reduce((o,f)=>(o[f]=$(f).value,o),{}), repCols:repPorCuerpo(), pieces};
 }
 function restore(d){
   if(!d||!d.pieces){ alert('Archivo de proyecto no válido.'); return; }
@@ -978,6 +1048,8 @@ function restore(d){
   if(d.bgrain) $('bgrain').value=d.bgrain;
   if(d.armado) $('armado').value=d.armado;
   if(d.gen) GENF.forEach(f=>{ if(d.gen[f]!==undefined) $(f).value=d.gen[f]; });
+  renderRepCols();
+  if(d.repCols) document.querySelectorAll('#repCols .rc').forEach((i,k)=>{ if(d.repCols[k]!==undefined) i.value=d.repCols[k]; });
   $('ededuct').checked=!!d.ededuct;
   if(d.color) $('color').value=d.color;
   if(d.texmode) $('texmode').value=d.texmode;
@@ -1128,6 +1200,14 @@ $('run').onclick=()=>{
 };
 ['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk','armado','gCajPos','gHol'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
 
+$('gCuerpos').addEventListener('change', renderRepCols);
+$('gInst').addEventListener('change', ()=>{
+  const colgado=$('gInst').value==='colgado';
+  $('gBase').disabled=colgado; $('gRetiro').disabled=colgado; $('gTrav').disabled=!colgado;
+  if(lastResult) draw(lastResult);
+});
+document.getElementById('repCols').addEventListener('input', ()=>{ if(lastResult) draw(lastResult); });
+renderRepCols();
 pieces = DEMO.map(p=>({...p})); render(); initCloud();
 </script>
 </body>
