@@ -226,6 +226,10 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
       <label>Repisas por cuerpo</label>
       <div id="repCols" class="grid4"></div>
     </div>
+    <div class="row">
+      <label>Espacio libre por cuerpo (lo que no ocupan los cajones)</label>
+      <div id="restCols" class="grid4"></div>
+    </div>
     <div class="grid2">
       <div><label>Cuerpos (columnas)</label>
         <select id="gCuerpos"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
@@ -585,11 +589,28 @@ function renderRepCols(){
 }
 function repPorCuerpo(){ return [...document.querySelectorAll('#repCols .rc')].map(i=>Math.max(0,+i.value||0)); }
 
+/* Qué va en el espacio que no ocupan los cajones, elegido por cuerpo:
+   'puertas' (frente con puerta), 'abiertas' (repisas sin frente) */
+function renderRestCols(){
+  const n=+($('gCuerpos')||{value:1}).value||1, prev=restPorCuerpo();
+  $('restCols').style.gridTemplateColumns='repeat('+n+',1fr)';
+  $('restCols').innerHTML=Array.from({length:n},(_,i)=>{
+    const v=prev[i]||'puertas';
+    return `<select class="rs" title="Cuerpo ${i+1}">
+      <option value="puertas"${v==='puertas'?' selected':''}>Puertas</option>
+      <option value="abiertas"${v==='abiertas'?' selected':''}>Abierto / repisas</option>
+    </select>`;
+  }).join('');
+}
+function restPorCuerpo(){ return [...document.querySelectorAll('#restCols .rs')].map(i=>i.value||'puertas'); }
+
 /* Reparto del frente en columnas (cuerpos) y bandas de cajones/puertas.
    Devuelve rectángulos en coordenadas del frente: x 0..W, y 0..H desde abajo. */
-function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp){
+function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos){
+  restos = restos || [];   // por columna: 'puertas' | 'abiertas'
+  const restoDe = i => restos[i] || 'puertas';
   const colW=W/nC, cols=[];
-  for(let i=0;i<nC;i++) cols.push({x:i*colW, w:colW, y0:hZoc, y1:H, caj:0});
+  for(let i=0;i<nC;i++) cols.push({x:i*colW, w:colW, y0:hZoc, y1:H, caj:0, idx:i});
   const dedicada=['izquierda','derecha','central'].includes(pos);
   let dc=[];
   if(pos==='izquierda') dc=[0];
@@ -601,15 +622,23 @@ function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp){
   const cajones=[], puertas=[];
   cols.forEach(c=>{
     const n=c.caj; if(!n) return;
-    const lleno = dedicada || pos==='completo';
+    // 'completo' llena la columna con cajones; en 'dedicada' se llena solo si
+    // esa columna quedará abierta (sin puertas que reclamen el resto).
+    const abierta = restoDe(c.idx)==='abiertas';
+    const lleno = pos==='completo' || (dedicada && abierta);
+    // El alto indicado es el del FRENTE visible del cajón: se usa tal cual.
     const h = lleno ? (c.y1-c.y0)/n : Math.min(hCaj||180, (c.y1-c.y0)/n);
     if(pos==='arriba'){ for(let k=0;k<n;k++) cajones.push({x:c.x,y:c.y1-(k+1)*h,w:c.w,h}); c.y1-=n*h; }
     else { for(let k=0;k<n;k++) cajones.push({x:c.x,y:c.y0+k*h,w:c.w,h}); c.y0+=n*h; }
   });
-  const libres=cols.filter(c=>c.y1-c.y0>60);
+
+  // El espacio libre de cada columna recibe puertas solo si esa columna está
+  // marcada 'puertas'. Las 'abiertas' quedan como repisas, sin frente.
+  const libres=cols.filter(c=>c.y1-c.y0>60 && restoDe(c.idx)==='puertas' && pos!=='completo');
   if(nPu>0 && libres.length){
     libres.forEach((c,i)=>{
       const k=Math.floor(nPu/libres.length)+(i<nPu%libres.length?1:0);
+      if(k<=0) return;
       for(let j=0;j<k;j++) puertas.push({x:c.x+j*c.w/k, y:c.y0, w:c.w/k, h:c.y1-c.y0});
     });
   }
@@ -688,8 +717,10 @@ function generarPiezas(){
   }
   if(nTrav) add('Travesaño', Wi, 100, nTrav,'libre',1,0);
 
-  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp);
-  if(nPu && !L.puertas.length) return alert('Con esa distribución no queda espacio para las puertas. Baja la cantidad de cajones o cámbialos de posición.');
+  const restos=restPorCuerpo();
+  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos);
+  const quierePuertas = nPu>0 && restos.slice(0,nC).some(r=>r==='puertas') && pos!=='completo';
+  if(quierePuertas && !L.puertas.length) return alert('Con esa distribución no queda espacio para las puertas. Baja la cantidad de cajones, súbelos de posición o marca ese cuerpo como «Abierto / repisas».');
   if(nCaj && !L.cajones.length) return alert('No se pudieron ubicar los cajones con esas medidas.');
   // agrupar frentes iguales en una sola fila
   const juntar=(rects,nombre,vertical,ca,ch)=>{
@@ -806,7 +837,7 @@ function buildModel(){
   const pus=gs.filter(g=>g.rol==='puerta'), nPu=pus.reduce((a,g)=>a+g.qty,0);
   const hCaj=cajs.length?Math.min(cajs[0].w,cajs[0].h):0;
   const pos=$('gCajPos')?$('gCajPos').value:'abajo';
-  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,+($('gHol')||{value:3}).value||0);
+  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,+($('gHol')||{value:3}).value||0,restPorCuerpo());
   L.cajones.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'cajon'));
   L.puertas.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'puerta'));
 
@@ -1038,7 +1069,8 @@ function snapshot(){
   const c={}; CFGF.forEach(f=>c[f]=$(f).value);
   return {v:2, name:$('pname').value, cfg:c, rot:$('rot').value, bgrain:$('bgrain').value, armado:$('armado').value,
           ededuct:$('ededuct').checked, color:$('color').value, texmode:$('texmode').value, tex:texURL,
-          roles:roleOverride, gen:GENF.reduce((o,f)=>(o[f]=$(f).value,o),{}), repCols:repPorCuerpo(), pieces};
+          roles:roleOverride, gen:GENF.reduce((o,f)=>(o[f]=$(f).value,o),{}),
+          repCols:repPorCuerpo(), restCols:restPorCuerpo(), pieces};
 }
 function restore(d){
   if(!d||!d.pieces){ alert('Archivo de proyecto no válido.'); return; }
@@ -1048,8 +1080,9 @@ function restore(d){
   if(d.bgrain) $('bgrain').value=d.bgrain;
   if(d.armado) $('armado').value=d.armado;
   if(d.gen) GENF.forEach(f=>{ if(d.gen[f]!==undefined) $(f).value=d.gen[f]; });
-  renderRepCols();
+  renderRepCols(); renderRestCols();
   if(d.repCols) document.querySelectorAll('#repCols .rc').forEach((i,k)=>{ if(d.repCols[k]!==undefined) i.value=d.repCols[k]; });
+  if(d.restCols) document.querySelectorAll('#restCols .rs').forEach((i,k)=>{ if(d.restCols[k]!==undefined) i.value=d.restCols[k]; });
   $('ededuct').checked=!!d.ededuct;
   if(d.color) $('color').value=d.color;
   if(d.texmode) $('texmode').value=d.texmode;
@@ -1200,14 +1233,15 @@ $('run').onclick=()=>{
 };
 ['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk','armado','gCajPos','gHol'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
 
-$('gCuerpos').addEventListener('change', renderRepCols);
+$('gCuerpos').addEventListener('change', ()=>{ renderRepCols(); renderRestCols(); });
+document.getElementById('restCols').addEventListener('change', ()=>{ if(lastResult) draw(lastResult); });
 $('gInst').addEventListener('change', ()=>{
   const colgado=$('gInst').value==='colgado';
   $('gBase').disabled=colgado; $('gRetiro').disabled=colgado; $('gTrav').disabled=!colgado;
   if(lastResult) draw(lastResult);
 });
 document.getElementById('repCols').addEventListener('input', ()=>{ if(lastResult) draw(lastResult); });
-renderRepCols();
+renderRepCols(); renderRestCols();
 pieces = DEMO.map(p=>({...p})); render(); initCloud();
 </script>
 </body>
