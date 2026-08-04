@@ -246,11 +246,19 @@ details summary{cursor:pointer;color:var(--acc);font-size:12px;margin-top:10px}
     <div class="grid2" style="margin-top:10px">
       <div><label>Este módulo es el tramo</label>
         <select id="modLado">
-          <option value="A">A — principal</option>
-          <option value="B">B — gira a la derecha</option>
+          <option value="A">A — principal (fijo)</option>
+          <option value="B">B — segundo tramo</option>
           <option value="C">C — cierra la U</option>
         </select></div>
       <div><label>Nombre del módulo</label><input id="modNombre" value="Bajo mesón"></div>
+    </div>
+    <div class="grid2" style="margin-top:10px">
+      <div><label>Gira hacia</label>
+        <select id="modGiro">
+          <option value="der">La derecha</option>
+          <option value="izq">La izquierda</option>
+        </select></div>
+      <div style="display:flex;align-items:flex-end"><div class="hint" style="margin:0">Solo aplica a B y C. El tramo A es la referencia fija. Si la L queda al revés, cambia el sentido.</div></div>
     </div>
     <div class="bar" style="margin-top:10px">
       <button class="ghost" id="modAdd">+ Añadir módulo (desde el diseño de arriba)</button>
@@ -944,9 +952,13 @@ function renderModulos(){
   if(!modulos.length){ cont.innerHTML=''; $('modHint').textContent=''; if($('genLU')) $('genLU').remove(); return; }
   const forma = modulos.length>=3?'U':modulos.length===2?'L':'recto';
   cont.innerHTML=`<table class="lst" style="margin-top:8px"><thead><tr>
-    <th>Tramo</th><th>Módulo</th><th>Medidas (An×Al×Fo)</th><th></th></tr></thead><tbody>
+    <th>Tramo</th><th>Módulo</th><th>Medidas (An×Al×Fo)</th><th>Giro</th><th></th></tr></thead><tbody>
     ${modulos.map((m,i)=>`<tr><td><b>${m.lado}</b></td><td>${esc(m.nombre)}</td>
       <td>${fmt(m.cfg.W)} × ${fmt(m.cfg.H)} × ${fmt(m.cfg.D)}</td>
+      <td>${m.lado==='A' ? '<span style="color:var(--muted)">fijo</span>' :
+        `<select data-modgiro="${i}" style="padding:3px 4px;font-size:12px">
+          <option value="der"${(m.giro||'der')==='der'?' selected':''}>→ derecha</option>
+          <option value="izq"${(m.giro||'der')==='izq'?' selected':''}>← izquierda</option></select>`}</td>
       <td><button class="del" data-modrm="${i}" title="Quitar">×</button></td></tr>`).join('')}
   </tbody></table>`;
   $('modHint').innerHTML=`<b>${modulos.length} módulo(s)</b> → mueble <b>${forma==='recto'?'recto':'en '+forma}</b>. `+
@@ -962,14 +974,19 @@ $('modList').addEventListener('click', e=>{
   const i=e.target.dataset.modrm;
   if(i!==undefined){ modulos.splice(+i,1); renderModulos(); if(lastResult) draw(lastResult); }
 });
+$('modList').addEventListener('change', e=>{
+  const i=e.target.dataset.modgiro;
+  if(i!==undefined){ modulos[+i].giro=e.target.value; if(lastResult) draw(lastResult); }
+});
 $('modAdd').onclick=()=>{
   const g=leerConfigDiseno();
   const test=piezasDeConfig(g,'');
   if(test.error) return alert('No se puede añadir el módulo: '+test.error);
   const lado=$('modLado').value, nombre=($('modNombre').value||'Módulo').trim();
+  const giro=$('modGiro').value;
   // No repetir el mismo lado: si ya existe, se reemplaza.
   const prev=modulos.findIndex(m=>m.lado===lado);
-  const item={lado, nombre, cfg:g};
+  const item={lado, nombre, cfg:g, giro};
   if(prev>=0) modulos[prev]=item; else modulos.push(item);
   modulos.sort((a,b)=>a.lado.localeCompare(b.lado));
   renderModulos();
@@ -1099,46 +1116,67 @@ function ctxDeCfg(cfg){
   return {thk:cfg.t, armado:cfg.modo, gCajPos:cfg.pos, gCajV:cfg.vpos,
           gHol:cfg.hp, gInst:cfg.inst, reps:cfg.reps, restos:cfg.restos};
 }
-/* Gira una pieza (caja alineada a ejes) 90° en el plano de planta X-Z.
-   La cámara isométrica ve X=ancho, Z=fondo. Rotar 90° intercambia ancho↔fondo.
-   nuevo x = z ;  nuevo z = spanX - (x + w) ; y (alto) no cambia. */
-function rot90(part, spanX){
-  return {x:part.z, y:part.y, z:spanX-(part.x+part.w),
-          w:part.d, h:part.h, d:part.w, tipo:part.tipo};
+/* Gira una pieza 90° en el plano de planta X-Z, en sentido horario o antihorario.
+   X=ancho, Z=fondo. Al rotar, ancho↔fondo se intercambian. 'span' es la medida
+   del tramo en el eje que pasa a ser Z, para reubicar el origen. */
+function rot90(part, span, sentido){
+  if(sentido==='cw'){          // horario: nuevo x = z, nuevo z = span-(x+w)
+    return {x:part.z, y:part.y, z:span-(part.x+part.w),
+            w:part.d, h:part.h, d:part.w, tipo:part.tipo};
+  }else{                        // antihorario: nuevo x = span-(z+d), nuevo z = x
+    return {x:span-(part.z+part.d), y:part.y, z:part.x,
+            w:part.d, h:part.h, d:part.w, tipo:part.tipo};
+  }
 }
 function shiftPart(p, dx, dz){ return {...p, x:p.x+dx, z:p.z+dz}; }
 
-/* Modelo del mueble en L/U compuesto de los módulos guardados. */
+/* Modelo del mueble en L/U compuesto de los módulos guardados.
+   Cada tramo B/C lleva su propio sentido de giro (cfg m.giro: 'der' | 'izq'),
+   con A fijo como referencia. Así se corrige que la L quede "al revés". */
 function buildModelLU(){
   if(modulos.length<2) return {err:'Se necesitan al menos 2 módulos para un mueble en L.'};
   const sub=[];
   for(const m of modulos){
-    const r=piezasDeConfig(m.cfg, '');           // piezas del módulo, sin prefijo
+    const r=piezasDeConfig(m.cfg, '');
     if(r.error) return {err:'Módulo '+m.lado+': '+r.error};
     const mm=buildModel(r.piezas, ctxDeCfg(m.cfg));
     if(mm.err) return {err:'Módulo '+m.lado+': '+mm.err};
-    sub.push({lado:m.lado, nombre:m.nombre, mm});
+    sub.push({lado:m.lado, nombre:m.nombre, mm, giro:m.giro||'der'});
   }
   const A=sub.find(s=>s.lado==='A'), B=sub.find(s=>s.lado==='B'), C=sub.find(s=>s.lado==='C');
   if(!A || !B) return {err:'Faltan los tramos A y B.'};
   let parts=[];
-  // Tramo A: tal cual, a lo largo de X.
+  // Tramo A: fijo, a lo largo de X.
   A.mm.parts.forEach(p=>parts.push({...p}));
   const WA=A.mm.W, DA=A.mm.D;
-  // Tramo B: gira 90° y se ancla al extremo derecho de A, saliendo hacia +Z.
-  // Tras rotar con span = B.W, su ancho pasa a ir en Z; lo pegamos en x=WA-DA
-  // aprox. (comparte la esquina) y arrancando en z=DA para no pisar A.
-  const WB=B.mm.W;
-  B.mm.parts.forEach(p=>{ let q=rot90(p, WB); q=shiftPart(q, WA-B.mm.D, DA); parts.push(q); });
-  // Tramo C: paralelo a A (sin rotar), cerrando la U al fondo de B.
-  if(C){
-    const WC=C.mm.W, DC=C.mm.D;
-    const zC = DA + WB - DC;   // al final del recorrido de B
-    C.mm.parts.forEach(p=>parts.push(shiftPart({...p}, 0, zC)));
+
+  // Tramo B: pivota en una esquina de A. 'der' pliega hacia el extremo derecho
+  // de A saliendo al fondo; 'izq' pliega hacia el extremo izquierdo.
+  const WB=B.mm.W, DB=B.mm.D;
+  if(B.giro==='izq'){
+    // Pivote en el extremo IZQUIERDO de A; B corre hacia el fondo por ese lado.
+    B.mm.parts.forEach(p=>{ let q=rot90(p, WB, 'ccw'); q=shiftPart(q, 0, DA); parts.push(q); });
+  }else{
+    // Pivote en el extremo DERECHO de A (por defecto).
+    B.mm.parts.forEach(p=>{ let q=rot90(p, WB, 'cw'); q=shiftPart(q, WA-DB, DA); parts.push(q); });
   }
-  // Bounding para las cotas
+
+  // Tramo C: paralelo a A, cerrando la U al fondo. Su lado depende de dónde
+  // haya ido B, para que quede enfrentado.
+  if(C){
+    const WC=C.mm.W;
+    const zC = DA + WB - C.mm.D;
+    // Si B fue a la izquierda, C se alinea a la izquierda; si a la derecha, a la derecha.
+    const xC = (B.giro==='izq') ? 0 : (WA - WC);
+    C.mm.parts.forEach(p=>parts.push(shiftPart({...p}, xC, zC)));
+  }
+
   const xs=parts.flatMap(p=>[p.x,p.x+p.w]), ys=parts.flatMap(p=>[p.y,p.y+p.h]), zs=parts.flatMap(p=>[p.z,p.z+p.d]);
-  const W=Math.max(...xs)-Math.min(...xs), H=Math.max(...ys)-Math.min(...ys), D=Math.max(...zs)-Math.min(...zs);
+  const minx=Math.min(...xs), minz=Math.min(...zs);
+  // Normalizar a origen positivo (por si 'izq' produjo coords negativas).
+  if(minx<0 || minz<0) parts=parts.map(p=>shiftPart(p, minx<0?-minx:0, minz<0?-minz:0));
+  const xs2=parts.flatMap(p=>[p.x,p.x+p.w]), zs2=parts.flatMap(p=>[p.z,p.z+p.d]);
+  const W=Math.max(...xs2)-Math.min(...xs2), H=Math.max(...ys)-Math.min(...ys), D=Math.max(...zs2)-Math.min(...zs2);
   const forma = modulos.length>=3?'U':'L';
   return {W,H,D,t:A.mm.t,modo:A.mm.modo,parts,esLU:true,forma,nMods:modulos.length,
           nRep:0,nPu:0,nCaj:0,nC:1,pos:'',vpos:'',hBase:0,nTr:0,inst:A.mm.inst};
