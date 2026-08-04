@@ -233,14 +233,21 @@ details summary{cursor:pointer;color:var(--muted);font-size:12px;margin-top:10px
     <div class="grid2">
       <div><label>Cuerpos (columnas)</label>
         <select id="gCuerpos"><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></div>
-      <div><label>Cajones en</label>
+      <div><label>Cajones en (columna)</label>
         <select id="gCajPos">
-          <option value="abajo">Abajo, bajo las puertas</option>
-          <option value="arriba">Arriba, sobre las puertas</option>
+          <option value="todas">Todas las columnas</option>
           <option value="izquierda">Columna izquierda</option>
           <option value="derecha">Columna derecha</option>
           <option value="central">Columna central</option>
           <option value="completo">Todo el frente, sin puertas</option>
+        </select></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid2">
+      <div><label>Posición del cajón en la columna</label>
+        <select id="gCajV">
+          <option value="abajo">Abajo</option>
+          <option value="arriba">Arriba</option>
         </select></div>
     </div>
     <div class="row"></div>
@@ -388,7 +395,7 @@ $('cleartex').onclick = ()=>{ texURL=null; $('tex').value=''; if(lastResult) dra
 
 /* ================= Config ================= */
 const CFGF = ['bw','bh','kerf','trim','thk','price','ethk','eprice','ewaste','texsize'];
-const GENF = ['gW','gH','gD','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas','gCuerpos','gCajPos',
+const GENF = ['gW','gH','gD','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas','gCuerpos','gCajPos','gCajV',
               'gInst','gBase','gRetiro','gTrav'];
 function readCfg(){
   const c={}; CFGF.forEach(f=>c[f]=+$(f).value||0);
@@ -606,8 +613,9 @@ function restPorCuerpo(){ return [...document.querySelectorAll('#restCols .rs')]
 
 /* Reparto del frente en columnas (cuerpos) y bandas de cajones/puertas.
    Devuelve rectángulos en coordenadas del frente: x 0..W, y 0..H desde abajo. */
-function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos){
+function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos,vpos){
   restos = restos || [];   // por columna: 'puertas' | 'abiertas'
+  vpos = vpos || 'abajo';  // posición del cajón dentro de la columna: 'abajo' | 'arriba'
   const restoDe = i => restos[i] || 'puertas';
   const colW=W/nC, cols=[];
   for(let i=0;i<nC;i++) cols.push({x:i*colW, w:colW, y0:hZoc, y1:H, caj:0, idx:i});
@@ -616,7 +624,7 @@ function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos){
   if(pos==='izquierda') dc=[0];
   else if(pos==='derecha') dc=[nC-1];
   else if(pos==='central') dc=[Math.floor((nC-1)/2)];
-  else dc=cols.map((_,i)=>i);
+  else dc=cols.map((_,i)=>i);   // 'todas' o 'completo'
   if(nCaj>0) dc.forEach((ci,k)=>cols[ci].caj=Math.floor(nCaj/dc.length)+(k<nCaj%dc.length?1:0));
 
   const cajones=[], puertas=[];
@@ -628,7 +636,8 @@ function frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos){
     const lleno = pos==='completo' || (dedicada && abierta);
     // El alto indicado es el del FRENTE visible del cajón: se usa tal cual.
     const h = lleno ? (c.y1-c.y0)/n : Math.min(hCaj||180, (c.y1-c.y0)/n);
-    if(pos==='arriba'){ for(let k=0;k<n;k++) cajones.push({x:c.x,y:c.y1-(k+1)*h,w:c.w,h}); c.y1-=n*h; }
+    // La banda de cajones se ubica arriba o abajo según vpos, en cualquier columna.
+    if(vpos==='arriba'){ for(let k=0;k<n;k++) cajones.push({x:c.x,y:c.y1-(k+1)*h,w:c.w,h}); c.y1-=n*h; }
     else { for(let k=0;k<n;k++) cajones.push({x:c.x,y:c.y0+k*h,w:c.w,h}); c.y0+=n*h; }
   });
 
@@ -699,7 +708,7 @@ function generarPiezas(){
     add('Piso/Techo', Wi, D, 2,'fija',1,0);
   }
   // Cuerpos y reparto del frente
-  const nC=+$('gCuerpos').value||1, pos=$('gCajPos').value;
+  const nC=+$('gCuerpos').value||1, pos=$('gCajPos').value, vpos=$('gCajV').value;
   if(nC>1) add('Separador', H-2*t, D, nC-1,'fija',1,1);
   if(nC===1 && ['izquierda','derecha','central'].includes(pos))
     return alert('Para poner los cajones en una columna necesitas al menos 2 cuerpos.');
@@ -718,7 +727,7 @@ function generarPiezas(){
   if(nTrav) add('Travesaño', Wi, 100, nTrav,'libre',1,0);
 
   const restos=restPorCuerpo();
-  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos);
+  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos,vpos);
   const quierePuertas = nPu>0 && restos.slice(0,nC).some(r=>r==='puertas') && pos!=='completo';
   if(quierePuertas && !L.puertas.length) return alert('Con esa distribución no queda espacio para las puertas. Baja la cantidad de cajones, súbelos de posición o marca ese cuerpo como «Abierto / repisas».');
   if(nCaj && !L.cajones.length) return alert('No se pudieron ubicar los cajones con esas medidas.');
@@ -836,12 +845,13 @@ function buildModel(){
   const cajs=gs.filter(g=>g.rol==='cajon'), nCaj=cajs.reduce((a,g)=>a+g.qty,0);
   const pus=gs.filter(g=>g.rol==='puerta'), nPu=pus.reduce((a,g)=>a+g.qty,0);
   const hCaj=cajs.length?Math.min(cajs[0].w,cajs[0].h):0;
-  const pos=$('gCajPos')?$('gCajPos').value:'abajo';
-  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,+($('gHol')||{value:3}).value||0,restPorCuerpo());
+  const pos=$('gCajPos')?$('gCajPos').value:'todas';
+  const vpos=$('gCajV')?$('gCajV').value:'abajo';
+  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,+($('gHol')||{value:3}).value||0,restPorCuerpo(),vpos);
   L.cajones.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'cajon'));
   L.puertas.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'puerta'));
 
-  return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj,nC,pos,hBase,nTr,
+  return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj,nC,pos,vpos,hBase,nTr,
           inst:($('gInst')?$('gInst').value:'piso')};
 }
 function shade(hex,f){
@@ -958,11 +968,13 @@ function draw(res){
     else{
       const detalle=[m.nRep?m.nRep+' repisa'+(m.nRep>1?'s':''):'', m.nPu?m.nPu+' puerta'+(m.nPu>1?'s':''):'',
                      m.nCaj?(m.nCaj>1? m.nCaj+' cajones':'1 cajón'):''].filter(Boolean).join(' · ');
-      const POSTXT={abajo:'cajones abajo',arriba:'cajones arriba',izquierda:'cajones en la columna izquierda',
-                    derecha:'cajones en la columna derecha',central:'cajones en la columna central',completo:'cajones en todo el frente'};
+      const COLTXT={todas:'en todas las columnas',izquierda:'en la columna izquierda',
+                    derecha:'en la columna derecha',central:'en la columna central',completo:'en todo el frente'};
+      const VTXT={abajo:'abajo',arriba:'arriba'};
+      const cajTxt = m.nCaj ? ('cajones '+(m.pos==='completo'?COLTXT.completo:(VTXT[m.vpos]+' '+COLTXT[m.pos]))) : '';
       html+=`<div class="meta">Cuerpo ${fmt(m.W)} ancho × ${fmt(m.H)} alto × ${fmt(m.D)} fondo mm · espesor ${m.t} mm${detalle?' · '+detalle:''}
         ${m.hBase?`<br>Base separada de ${fmt(m.hBase)} mm — <b>altura total ${fmt(m.H+m.hBase)} mm</b>`:''}
-        <br>${ARMADOS[m.modo]}${m.nC>1?' · '+m.nC+' cuerpos':''}${m.nCaj?' · '+POSTXT[m.pos]:''}${m.inst==='colgado'?' · mueble colgado':''}${m.nTr?' · '+m.nTr+' travesaños':''}</div>
+        <br>${ARMADOS[m.modo]}${m.nC>1?' · '+m.nC+' cuerpos':''}${cajTxt?' · '+cajTxt:''}${m.inst==='colgado'?' · mueble colgado':''}${m.nTr?' · '+m.nTr+' travesaños':''}</div>
         ${modelSvg(m,cfg.color)}`;
     }
     html+=`<details><summary>Cómo se interpretó cada pieza</summary>${rolesUI()}
@@ -1231,7 +1243,7 @@ $('run').onclick=()=>{
   lastResult=r; draw(r);
   document.querySelector('main').scrollIntoView({behavior:'smooth',block:'start'});
 };
-['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk','armado','gCajPos','gHol'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
+['color','texmode','texsize','bgrain','showseq','showedge','showmodel','thk','armado','gCajPos','gCajV','gHol'].forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
 
 $('gCuerpos').addEventListener('change', ()=>{ renderRepCols(); renderRestCols(); });
 document.getElementById('restCols').addEventListener('change', ()=>{ if(lastResult) draw(lastResult); });
