@@ -165,51 +165,6 @@ details summary{cursor:pointer;color:var(--acc);font-size:12px;margin-top:10px}
     <div class="row" style="margin-top:8px"><label>Importar proyecto (.json)</label><input id="imp" type="file" accept=".json,application/json"></div>
     <div class="hint" id="phint"></div>
   </div>
-
-  <div class="card">
-    <h2>Tablero</h2>
-    <div class="grid2">
-      <div><label>Largo (X)</label><input id="bw" type="number" value="2440" min="100"></div>
-      <div><label>Ancho (Y)</label><input id="bh" type="number" value="1220" min="100"></div>
-    </div>
-    <div class="row"></div>
-    <div class="grid3">
-      <div><label>Sierra (kerf)</label><input id="kerf" type="number" value="4" min="0" step="0.1"></div>
-      <div><label>Refile borde</label><input id="trim" type="number" value="10" min="0"></div>
-      <div><label>Espesor</label><input id="thk" type="number" value="18" min="1"></div>
-    </div>
-    <div class="row"></div>
-    <div class="grid3">
-      <div><label>Veta del tablero</label>
-        <select id="bgrain"><option value="x">A lo largo (X)</option><option value="y">A lo ancho (Y)</option></select></div>
-      <div><label>Rotar sin veta</label>
-        <select id="rot"><option value="1">Sí</option><option value="0">No</option></select></div>
-      <div><label>Precio tablero</label><input id="price" type="number" value="0" min="0"></div>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <label>Armado del mueble (para la vista 3D)</label>
-      <select id="armado">
-        <option value="costados">Costados por fuera — tapan piso y techo</option>
-        <option value="horizontales">Piso y techo por fuera — tapan los costados</option>
-        <option value="mixto">Techo por fuera, piso entre costados</option>
-      </select>
-    </div>
-    <div class="hint">Cambia solo cómo se interpretan las medidas al armar, no los cortes. Con costados por fuera, un piso de 864 da un mueble de 900; con piso y techo por fuera, da uno de 864.</div>
-  </div>
-
-  <div class="card">
-    <h2>Tapacanto</h2>
-    <div class="grid3">
-      <div><label>Espesor (mm)</label><input id="ethk" type="number" value="0.45" step="0.05" min="0"></div>
-      <div><label>Precio por metro</label><input id="eprice" type="number" value="0" min="0"></div>
-      <div><label>Merma (%)</label><input id="ewaste" type="number" value="10" min="0"></div>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <label style="color:var(--txt);font-size:13px"><input type="checkbox" id="ededuct">Descontar el espesor del canto de la medida de corte</label>
-    </div>
-    <div class="hint">Si lo activas, una pieza de 500 con canto en un borde se corta a 499,55 y queda en 500 ya cantada.</div>
-  </div>
-
   <div class="card">
     <h2>Diseñar mueble → piezas</h2>
     <div class="grid3">
@@ -285,7 +240,25 @@ details summary{cursor:pointer;color:var(--acc);font-size:12px;margin-top:10px}
     <button id="gen" style="margin-top:11px">Generar lista de piezas</button>
     <div class="hint">Usa el espesor y el <b>armado</b> de la tarjeta Tablero. El <b>alto exterior</b> es el del cuerpo: si eliges base separada, esa altura se suma aparte. Genera la lista de abajo, que después puedes editar pieza por pieza.</div>
   </div>
-
+  <div class="card">
+    <h2>Módulos — mueble en L / U</h2>
+    <div class="hint" style="margin-top:0">Para un mueble recto no necesitas esto. Para un mueble en <b>L</b> (2 tramos) o <b>U</b> (3 tramos): configura arriba cada tramo y pulsa «Añadir módulo». El despiece de todos se cubica junto y la vista 3D los arma en esquina.</div>
+    <div class="grid2" style="margin-top:10px">
+      <div><label>Este módulo es el tramo</label>
+        <select id="modLado">
+          <option value="A">A — principal</option>
+          <option value="B">B — gira a la derecha</option>
+          <option value="C">C — cierra la U</option>
+        </select></div>
+      <div><label>Nombre del módulo</label><input id="modNombre" value="Bajo mesón"></div>
+    </div>
+    <div class="bar" style="margin-top:10px">
+      <button class="ghost" id="modAdd">+ Añadir módulo (desde el diseño de arriba)</button>
+      <button class="ghost" id="modClear">Vaciar módulos</button>
+    </div>
+    <div id="modList" class="scrollx"></div>
+    <div class="hint" id="modHint"></div>
+  </div>
   <div class="card">
     <h2>Piezas</h2>
     <div class="tblwrap">
@@ -309,7 +282,6 @@ details summary{cursor:pointer;color:var(--acc);font-size:12px;margin-top:10px}
     <div class="hint"><b>Veta fija:</b> el Ancho corre en el sentido de la veta, la pieza no rota. <b>Libre:</b> puede girar 90°.<br>
     <b>C ↔</b> = cuántos de los 2 bordes horizontales llevan canto · <b>C ↕</b> = cuántos de los 2 bordes verticales.</div>
   </div>
-
   <div class="card">
     <h2>Color / textura</h2>
     <div class="grid2">
@@ -324,8 +296,108 @@ details summary{cursor:pointer;color:var(--acc);font-size:12px;margin-top:10px}
     </div>
     <div class="hint">La imagen se reduce automáticamente antes de guardarla en la nube.</div>
   </div>
-
   <button class="primary" id="run" style="padding:11px">Cubicar y optimizar</button>
+  <div class="card">
+    <h2>Tablero</h2>
+    <div class="grid2">
+      <div><label>Largo (X)</label><input id="bw" type="number" value="2440" min="100"></div>
+      <div><label>Ancho (Y)</label><input id="bh" type="number" value="1220" min="100"></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid3">
+      <div><label>Sierra (kerf)</label><input id="kerf" type="number" value="4" min="0" step="0.1"></div>
+      <div><label>Refile borde</label><input id="trim" type="number" value="10" min="0"></div>
+      <div><label>Espesor</label><input id="thk" type="number" value="18" min="1"></div>
+    </div>
+    <div class="row"></div>
+    <div class="grid3">
+      <div><label>Veta del tablero</label>
+        <select id="bgrain"><option value="x">A lo largo (X)</option><option value="y">A lo ancho (Y)</option></select></div>
+      <div><label>Rotar sin veta</label>
+        <select id="rot"><option value="1">Sí</option><option value="0">No</option></select></div>
+      <div><label>Precio tablero</label><input id="price" type="number" value="0" min="0"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label>Armado del mueble (para la vista 3D)</label>
+      <select id="armado">
+        <option value="costados">Costados por fuera — tapan piso y techo</option>
+        <option value="horizontales">Piso y techo por fuera — tapan los costados</option>
+        <option value="mixto">Techo por fuera, piso entre costados</option>
+      </select>
+    </div>
+    <div class="hint">Cambia solo cómo se interpretan las medidas al armar, no los cortes. Con costados por fuera, un piso de 864 da un mueble de 900; con piso y techo por fuera, da uno de 864.</div>
+  </div>
+  <div class="card">
+    <h2>Tapacanto</h2>
+    <div class="grid3">
+      <div><label>Espesor (mm)</label><input id="ethk" type="number" value="0.45" step="0.05" min="0"></div>
+      <div><label>Precio por metro</label><input id="eprice" type="number" value="0" min="0"></div>
+      <div><label>Merma (%)</label><input id="ewaste" type="number" value="10" min="0"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label style="color:var(--txt);font-size:13px"><input type="checkbox" id="ededuct">Descontar el espesor del canto de la medida de corte</label>
+    </div>
+    <div class="hint">Si lo activas, una pieza de 500 con canto en un borde se corta a 499,55 y queda en 500 ya cantada.</div>
+  </div>
+  <div class="card">
+    <h2>Cubierta (encimera)</h2>
+    <div class="row">
+      <label style="color:var(--txt);font-size:13px"><input type="checkbox" id="cubOn">Este mueble lleva cubierta</label>
+    </div>
+    <div id="cubBox" style="display:none">
+      <div class="grid2">
+        <div><label>Material</label>
+          <select id="cubMat">
+            <option value="postformado" data-u="ml">Postformado</option>
+            <option value="granito" data-u="m2">Granito</option>
+            <option value="cuarzo" data-u="m2">Cuarzo</option>
+            <option value="melamina" data-u="m2">Melamina / aglomerado</option>
+            <option value="madera" data-u="m2">Madera maciza</option>
+          </select></div>
+        <div><label>Cómo se cobra</label>
+          <select id="cubUnit"><option value="ml">Por metro lineal</option><option value="m2">Por metro cuadrado</option></select></div>
+      </div>
+      <div class="row"></div>
+      <div class="grid2">
+        <div><label>Forma de la cubierta</label>
+          <select id="cubForma">
+            <option value="recta">Recta (1 tramo)</option>
+            <option value="l">En L (2 tramos)</option>
+            <option value="u">En U (3 tramos)</option>
+          </select></div>
+        <div><label>Esquinas en</label>
+          <select id="cubEsq">
+            <option value="inglete">Inglete (45°)</option>
+            <option value="solape">Un tramo pisa al otro</option>
+          </select></div>
+      </div>
+      <div class="row"></div>
+      <div class="grid3">
+        <div><label>Tramo A — largo (mm)</label><input id="cubLA" type="number" value="0" min="0"></div>
+        <div id="wrapLB"><label>Tramo B — largo (mm)</label><input id="cubLB" type="number" value="0" min="0"></div>
+        <div id="wrapLC"><label>Tramo C — largo (mm)</label><input id="cubLC" type="number" value="0" min="0"></div>
+      </div>
+      <div class="hint" id="cubFormaHint">Si dejas el tramo A en 0, se toma el ancho del mueble diseñado. En L/U cada tramo es un lado del mesón; el largo va de esquina a extremo.</div>
+      <div class="row"></div>
+      <div class="grid3">
+        <div><label>Fondo cubierta (mm)</label><input id="cubF" type="number" value="600" min="0"></div>
+        <div><label>Espesor (mm)</label><input id="cubT" type="number" value="38" min="0"></div>
+        <div><label>Precio (por unidad)</label><input id="cubPrice" type="number" value="0" min="0"></div>
+      </div>
+      <div class="row"></div>
+      <div class="grid2">
+        <div><label>Merma (%)</label><input id="cubWaste" type="number" value="10" min="0"></div>
+        <div style="display:flex;align-items:flex-end">
+          <label style="color:var(--txt);font-size:13px"><input type="checkbox" id="cubFald">Zócalo posterior / faldón</label>
+        </div>
+      </div>
+      <div class="grid2" id="cubFaldBox" style="display:none">
+        <div><label>Alto zócalo (mm)</label><input id="cubFaldH" type="number" value="40" min="0"></div>
+        <div><label>Alto faldón frontal (mm)</label><input id="cubFaldF" type="number" value="0" min="0"></div>
+      </div>
+      <div class="hint">El postformado suele cobrarse por metro lineal; granito, cuarzo, melamina y madera por m². En L/U el área de las esquinas se cuenta una sola vez.</div>
+    </div>
+  </div>
 </aside>
 
 <main>
@@ -441,6 +513,7 @@ $('cleartex').onclick = ()=>{ texURL=null; $('tex').value=''; if(lastResult) dra
 const CFGF = ['bw','bh','kerf','trim','thk','price','ethk','eprice','ewaste','texsize'];
 const GENF = ['gW','gH','gD','gPu','gCaj','gCajH','gZoc','gHol','gFondo','gCajas','gCuerpos','gCajPos','gCajV',
               'gInst','gBase','gRetiro','gTrav'];
+const CUBF = ['cubMat','cubUnit','cubForma','cubEsq','cubLA','cubLB','cubLC','cubF','cubT','cubPrice','cubWaste','cubFaldH','cubFaldF'];
 function readCfg(){
   const c={}; CFGF.forEach(f=>c[f]=+$(f).value||0);
   c.rot=$('rot').value==='1'; c.bgrain=$('bgrain').value;
@@ -561,6 +634,12 @@ function optimize(){
   best.cfg=cfg; best.instCount=inst.length;
   best.seq = best.sheets.map(s=>cutSequence(s,cfg));
   best.edge = edgeTotals(cfg);
+  // Ancho de referencia para la cubierta: el del mueble armado si se puede
+  // deducir; si no, el ancho del diseñador multiplicado por los cuerpos.
+  let anchoRef=0;
+  try{ const mm=buildModel(); if(mm && !mm.err && mm.W>0) anchoRef=mm.W; }catch(e){}
+  if(!anchoRef){ const nC=+$('gCuerpos').value||1; anchoRef=(+$('gW').value||0)*(nC>1?nC:1); }
+  best.cub = cubiertaTotals(anchoRef);
   return best;
 }
 
@@ -624,6 +703,44 @@ function edgeTotals(cfg){
     m: ((+p.ca)*p.w + (+p.ch)*p.h)/1000*p.qty})).filter(r=>r.m>0);
   const m = rows.reduce((a,r)=>a+r.m,0), mw = m*(1+cfg.ewaste/100);
   return {rows, m, mw, cost:mw*cfg.eprice};
+}
+
+/* ================= Cubierta (encimera) =================
+   Cotización aparte: no entra al despiece del tablero. Según el material se
+   cobra por metro lineal (postformado) o por m² (granito, cuarzo, madera,
+   melamina). anchoRef es el ancho a usar si el largo se dejó en 0. */
+const CUB_LABEL={postformado:'Postformado',granito:'Granito',cuarzo:'Cuarzo',melamina:'Melamina',madera:'Madera maciza'};
+function cubiertaTotals(anchoRef){
+  if(!$('cubOn').checked) return null;
+  const mat=$('cubMat').value, unit=$('cubUnit').value;
+  const forma=$('cubForma').value, esq=$('cubEsq').value;
+  const nTramos = forma==='u' ? 3 : forma==='l' ? 2 : 1;
+  const nEsq = nTramos-1;                 // L: 1 esquina, U: 2 esquinas
+  let LA=+$('cubLA').value||0; if(LA<=0) LA=anchoRef||0;
+  const LB=+$('cubLB').value||0, LC=+$('cubLC').value||0;
+  const largos=[LA]; if(nTramos>=2) largos.push(LB); if(nTramos>=3) largos.push(LC);
+  const F=+$('cubF').value||0, T=+$('cubT').value||0;
+  const price=+$('cubPrice').value||0, waste=+$('cubWaste').value||0;
+  const fald=$('cubFald').checked, faldH=fald?(+$('cubFaldH').value||0):0, faldF=fald?(+$('cubFaldF').value||0):0;
+
+  const sumL = largos.reduce((a,l)=>a+l,0);      // largo total de tramos (mm)
+  const ml = sumL/1000;                           // metros lineales
+  // m² de superficie: suma de tramos menos el cuadrado F×F de cada esquina,
+  // que quedaría contado dos veces si los tramos se miden de esquina a extremo.
+  const m2bruto = (sumL*F)/1e6;
+  const m2esq = nEsq*(F*F)/1e6;
+  const m2 = Math.max(0, m2bruto - m2esq);
+  // Zócalo/faldón: tiras a lo largo del perímetro visible (una por tramo).
+  const m2extra = (sumL*(faldH+faldF))/1e6;
+  const factor = 1+waste/100;
+  let base, unidadTxt;
+  if(unit==='ml'){ base=ml; unidadTxt='m lineales'; }
+  else { base=m2+m2extra; unidadTxt='m²'; }
+  const neta=base, merma=base*factor, cost=merma*price;
+  const formaTxt = forma==='u'?'En U':forma==='l'?'En L':'Recta';
+  return {on:true, mat, matTxt:CUB_LABEL[mat]||mat, unit, unidadTxt,
+          forma, formaTxt, esq, nTramos, nEsq, largos, sumL, F, T, faldH, faldF,
+          ml, m2, m2bruto, m2esq, m2extra, neta, merma, waste, price, cost};
 }
 
 /* ============ Vista isométrica del mueble armado ============ */
@@ -721,25 +838,40 @@ function detectRole(n){
 function roleOf(p){ const o=roleOverride[p.name]; return (o && o!=='auto') ? o : detectRole(p.name); }
 
 /* ---- Camino inverso: del mueble terminado a la lista de piezas ---- */
-function generarPiezas(){
-  const t=+$('thk').value||18, modo=$('armado').value||'costados';
-  const W=+$('gW').value, H=+$('gH').value, D=+$('gD').value;
-  if(!(W>0&&H>0&&D>0)) return alert('Completa ancho, alto y fondo del mueble.');
-  if(W<=2*t+20 || H<=2*t+20) return alert('El mueble es demasiado chico para ese espesor de tablero.');
-  const reps=repPorCuerpo(), nRep=reps.reduce((a,b)=>a+b,0);
-  const nPu=+$('gPu').value||0, nCaj=+$('gCaj').value||0;
-  const hCaj=+$('gCajH').value||180, hp=+$('gHol').value||0;
-  const conCaja=$('gCajas').value==='1', tFondo=$('gFondo').value;
-  const inst=$('gInst').value, colgado=inst==='colgado';
-  const tipoBase=colgado?'no':$('gBase').value, hB=+$('gZoc').value||0;
-  const retiro=+$('gRetiro').value||0, nTrav=colgado?(+$('gTrav').value||0):0;
-  const hZoc=(tipoBase==='frente')?hB:0;   // solo el tapa-zócalo ocupa frente del cuerpo
-  const Wi=W-2*t;                       // ancho libre entre costados
+/* Lee del DOM toda la config del diseñador en un objeto plano. Sirve para
+   generar el mueble actual y para guardar módulos (mueble en L/U). */
+function leerConfigDiseno(){
+  return {
+    t:+$('thk').value||18, modo:$('armado').value||'costados',
+    W:+$('gW').value, H:+$('gH').value, D:+$('gD').value,
+    reps:repPorCuerpo(), restos:restPorCuerpo(),
+    nPu:+$('gPu').value||0, nCaj:+$('gCaj').value||0,
+    hCaj:+$('gCajH').value||180, hp:+$('gHol').value||0,
+    conCaja:$('gCajas').value==='1', tFondo:$('gFondo').value,
+    inst:$('gInst').value, gBase:$('gBase').value, hB:+$('gZoc').value||0,
+    retiro:+$('gRetiro').value||0, gTrav:+$('gTrav').value||0,
+    nC:+$('gCuerpos').value||1, pos:$('gCajPos').value, vpos:$('gCajV').value
+  };
+}
+/* Produce el array de piezas de UN módulo a partir de su config g.
+   Devuelve {piezas} o {error}. No toca el DOM. prefijo se antepone al nombre. */
+function piezasDeConfig(g, prefijo){
+  const t=g.t, modo=g.modo, W=g.W, H=g.H, D=g.D;
+  if(!(W>0&&H>0&&D>0)) return {error:'Completa ancho, alto y fondo del mueble.'};
+  if(W<=2*t+20 || H<=2*t+20) return {error:'El mueble es demasiado chico para ese espesor de tablero.'};
+  const reps=g.reps, nRep=reps.reduce((a,b)=>a+b,0);
+  const nPu=g.nPu, nCaj=g.nCaj, hCaj=g.hCaj, hp=g.hp;
+  const conCaja=g.conCaja, tFondo=g.tFondo;
+  const colgado=g.inst==='colgado';
+  const tipoBase=colgado?'no':g.gBase, hB=g.hB;
+  const retiro=g.retiro, nTrav=colgado?g.gTrav:0;
+  const hZoc=(tipoBase==='frente')?hB:0;
+  const Wi=W-2*t;
+  const pre = prefijo ? prefijo+' ' : '';
   const P=[];
   const add=(name,w,h,qty,grain,ca,ch)=>{ w=Math.round(w); h=Math.round(h);
-    if(w>0&&h>0&&qty>0) P.push({name,w,h,qty,grain,ca,ch}); };
+    if(w>0&&h>0&&qty>0) P.push({name:pre+name,w,h,qty,grain,ca,ch}); };
 
-  // Estructura, según cómo se arma
   if(modo==='horizontales'){
     add('Piso/Techo', W, D, 2,'fija',1,0);
     add('Costado',    H-2*t, D, 2,'fija',1,1);
@@ -751,17 +883,15 @@ function generarPiezas(){
     add('Costado',    H,  D, 2,'fija',1,1);
     add('Piso/Techo', Wi, D, 2,'fija',1,0);
   }
-  // Cuerpos y reparto del frente
-  const nC=+$('gCuerpos').value||1, pos=$('gCajPos').value, vpos=$('gCajV').value;
+  const nC=g.nC, pos=g.pos, vpos=g.vpos;
   if(nC>1) add('Separador', H-2*t, D, nC-1,'fija',1,1);
   if(nC===1 && ['izquierda','derecha','central'].includes(pos))
-    return alert('Para poner los cajones en una columna necesitas al menos 2 cuerpos.');
+    return {error:'Para poner los cajones en una columna necesitas al menos 2 cuerpos.'};
   const colIn=(Wi-(nC-1)*t)/nC;
   if(reps.length>nC && reps.slice(nC).some(v=>v>0))
-    return alert('Hay repisas asignadas a cuerpos que ya no existen. Ajusta las cantidades por cuerpo.');
+    return {error:'Hay repisas asignadas a cuerpos que ya no existen. Ajusta las cantidades por cuerpo.'};
   if(nRep) add('Repisa', colIn-1, Math.max(80,D-20), nRep,'fija',1,0);
 
-  // Base / zócalo
   if(tipoBase==='frente' && hB>0) add('Zócalo', Wi, hB, 1,'libre',1,0);
   else if(tipoBase==='base' && hB>0){
     const dB=Math.max(100, D-retiro);
@@ -770,12 +900,11 @@ function generarPiezas(){
   }
   if(nTrav) add('Travesaño', Wi, 100, nTrav,'libre',1,0);
 
-  const restos=restPorCuerpo();
+  const restos=g.restos;
   const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,hp,restos,vpos);
   const quierePuertas = nPu>0 && restos.slice(0,nC).some(r=>r==='puertas') && pos!=='completo';
-  if(quierePuertas && !L.puertas.length) return alert('Con esa distribución no queda espacio para las puertas. Baja la cantidad de cajones, súbelos de posición o marca ese cuerpo como «Abierto / repisas».');
-  if(nCaj && !L.cajones.length) return alert('No se pudieron ubicar los cajones con esas medidas.');
-  // agrupar frentes iguales en una sola fila
+  if(quierePuertas && !L.puertas.length) return {error:'Con esa distribución no queda espacio para las puertas. Baja los cajones, súbelos o marca el cuerpo como «Abierto / repisas».'};
+  if(nCaj && !L.cajones.length) return {error:'No se pudieron ubicar los cajones con esas medidas.'};
   const juntar=(rects,nombre,vertical,ca,ch)=>{
     const m=new Map();
     rects.forEach(r=>{ const w=Math.round(vertical?r.h:r.w), h=Math.round(vertical?r.w:r.h);
@@ -794,21 +923,87 @@ function generarPiezas(){
   if(tFondo==='atornillado') add('Fondo', H, W, 1,'fija',0,0);
   else if(tFondo==='encajado') add('Fondo', H-2*t+12, Wi+12, 1,'fija',0,0);
 
-  if(!P.length) return alert('No se generó ninguna pieza. Revisa las medidas.');
-  if(pieces.length && !confirm('Se reemplazará la lista de piezas actual por '+P.length+' filas generadas.\n¿Continuar?')) return;
-  pieces=P; roleOverride={}; render(); lastResult=null;
-  $('out').innerHTML='<div class="empty">Piezas generadas desde el mueble de '+fmt(W)+' × '+fmt(H)+' × '+fmt(D)+' mm.<br>Revísalas y presiona <b>Cubicar y optimizar</b>.</div>';
+  if(!P.length) return {error:'No se generó ninguna pieza. Revisa las medidas.'};
+  return {piezas:P, W, H, D};
+}
+
+function generarPiezas(){
+  const g=leerConfigDiseno();
+  const r=piezasDeConfig(g, '');
+  if(r.error) return alert(r.error);
+  if(pieces.length && !confirm('Se reemplazará la lista de piezas actual por '+r.piezas.length+' filas generadas.\n¿Continuar?')) return;
+  pieces=r.piezas; roleOverride={}; render(); lastResult=null;
+  $('out').innerHTML='<div class="empty">Piezas generadas desde el mueble de '+fmt(r.W)+' × '+fmt(r.H)+' × '+fmt(r.D)+' mm.<br>Revísalas y presiona <b>Cubicar y optimizar</b>.</div>';
 }
 $('gen').onclick=generarPiezas;
+
+/* ================= Módulos (mueble en L / U) ================= */
+let modulos = [];   // [{lado:'A'|'B'|'C', nombre, cfg}]
+function renderModulos(){
+  const cont=$('modList');
+  if(!modulos.length){ cont.innerHTML=''; $('modHint').textContent=''; if($('genLU')) $('genLU').remove(); return; }
+  const forma = modulos.length>=3?'U':modulos.length===2?'L':'recto';
+  cont.innerHTML=`<table class="lst" style="margin-top:8px"><thead><tr>
+    <th>Tramo</th><th>Módulo</th><th>Medidas (An×Al×Fo)</th><th></th></tr></thead><tbody>
+    ${modulos.map((m,i)=>`<tr><td><b>${m.lado}</b></td><td>${esc(m.nombre)}</td>
+      <td>${fmt(m.cfg.W)} × ${fmt(m.cfg.H)} × ${fmt(m.cfg.D)}</td>
+      <td><button class="del" data-modrm="${i}" title="Quitar">×</button></td></tr>`).join('')}
+  </tbody></table>`;
+  $('modHint').innerHTML=`<b>${modulos.length} módulo(s)</b> → mueble <b>${forma==='recto'?'recto':'en '+forma}</b>. `+
+    `Pulsa «Generar despiece de todos» para volcar sus piezas a la lista y cubicar juntas.`;
+  // botón de generar combinado, junto a la lista
+  if(!$('genLU')){
+    const b=document.createElement('button'); b.id='genLU'; b.className='ghost';
+    b.style.marginTop='8px'; b.textContent='Generar despiece de todos los módulos';
+    b.onclick=generarModulos; cont.after(b);
+  }
+}
+$('modList').addEventListener('click', e=>{
+  const i=e.target.dataset.modrm;
+  if(i!==undefined){ modulos.splice(+i,1); renderModulos(); if(lastResult) draw(lastResult); }
+});
+$('modAdd').onclick=()=>{
+  const g=leerConfigDiseno();
+  const test=piezasDeConfig(g,'');
+  if(test.error) return alert('No se puede añadir el módulo: '+test.error);
+  const lado=$('modLado').value, nombre=($('modNombre').value||'Módulo').trim();
+  // No repetir el mismo lado: si ya existe, se reemplaza.
+  const prev=modulos.findIndex(m=>m.lado===lado);
+  const item={lado, nombre, cfg:g};
+  if(prev>=0) modulos[prev]=item; else modulos.push(item);
+  modulos.sort((a,b)=>a.lado.localeCompare(b.lado));
+  renderModulos();
+  // avanzar el selector al siguiente lado
+  const next={A:'B',B:'C',C:'C'}[lado]; $('modLado').value=next;
+};
+$('modClear').onclick=()=>{ if(modulos.length && confirm('¿Vaciar la lista de módulos?')){ modulos=[]; renderModulos(); } };
+function generarModulos(){
+  if(!modulos.length) return alert('No hay módulos. Configura un tramo arriba y pulsa «Añadir módulo».');
+  let all=[], err=null;
+  modulos.forEach(m=>{
+    const r=piezasDeConfig(m.cfg, m.lado+':');
+    if(r.error){ err=err||('Módulo '+m.lado+' ('+m.nombre+'): '+r.error); return; }
+    r.piezas.forEach(p=>all.push(p));
+  });
+  if(err) return alert(err);
+  if(!all.length) return alert('No se generó ninguna pieza.');
+  if(pieces.length && !confirm('Se reemplazará la lista actual por '+all.length+' piezas de '+modulos.length+' módulo(s).\n¿Continuar?')) return;
+  pieces=all; roleOverride={}; render(); lastResult=null;
+  const forma=modulos.length>=3?'U':modulos.length===2?'L':'recto';
+  $('out').innerHTML='<div class="empty">Despiece combinado de '+modulos.length+' módulo(s) — mueble '+(forma==='recto'?'recto':'en '+forma)+'.<br>Presiona <b>Cubicar y optimizar</b>.</div>';
+}
 
 const ARMADOS={
   costados:'Costados por fuera — tapan piso y techo',
   horizontales:'Piso y techo por fuera — tapan los costados',
   mixto:'Techo por fuera, piso entre costados'
 };
-function buildModel(){
-  const t=+$('thk').value||18, modo=$('armado').value||'costados';
-  const gs=pieces.filter(p=>+p.qty>0).map(p=>({...p, w:+p.w, h:+p.h, qty:+p.qty, rol:roleOf(p)}));
+function buildModel(piezasArg, ctx){
+  const src = piezasArg || pieces;
+  const gv = (id,def)=> ctx ? (ctx[id]!==undefined?ctx[id]:def) : ($(id)?$(id).value:def);
+  const repArr = ctx ? (ctx.reps||[]) : repPorCuerpo();
+  const t=+(ctx?ctx.thk:$('thk').value)||18, modo=gv('armado','costados')||'costados';
+  const gs=src.filter(p=>+p.qty>0).map(p=>({...p, w:+p.w, h:+p.h, qty:+p.qty, rol:roleOf(p)}));
   const has=r=>gs.some(g=>g.rol===r);
   const cos=gs.find(g=>g.rol==='costado');
   if(!cos) return {err:'No identifico los costados. Abre «Cómo se interpretó cada pieza» y marca cuál es el Costado.'};
@@ -855,7 +1050,7 @@ function buildModel(){
   if(rep && nRep){
     const dRep=Math.min(D, Math.abs(rep.w-colIn)<=Math.abs(rep.h-colIn) ? rep.h : rep.w);
     // si los campos «repisas por cuerpo» cuadran con el total, se respetan
-    const decl=repPorCuerpo();
+    const decl=repArr;
     const usa = (decl.length===nC && decl.reduce((a,b)=>a+b,0)===nRep)
       ? decl : Array.from({length:nC},(_,c)=>Math.floor(nRep/nC)+(c<nRep%nC?1:0));
     for(let c=0;c<nC;c++){
@@ -889,14 +1084,64 @@ function buildModel(){
   const cajs=gs.filter(g=>g.rol==='cajon'), nCaj=cajs.reduce((a,g)=>a+g.qty,0);
   const pus=gs.filter(g=>g.rol==='puerta'), nPu=pus.reduce((a,g)=>a+g.qty,0);
   const hCaj=cajs.length?Math.min(cajs[0].w,cajs[0].h):0;
-  const pos=$('gCajPos')?$('gCajPos').value:'todas';
-  const vpos=$('gCajV')?$('gCajV').value:'abajo';
-  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,+($('gHol')||{value:3}).value||0,restPorCuerpo(),vpos);
+  const pos=gv('gCajPos','todas')||'todas';
+  const vpos=gv('gCajV','abajo')||'abajo';
+  const restos = ctx ? (ctx.restos||[]) : restPorCuerpo();
+  const L=frontLayout(W,H,t,nC,pos,nCaj,hCaj,hZoc,nPu,+(gv('gHol',3))||0,restos,vpos);
   L.cajones.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'cajon'));
   L.puertas.forEach(r=>add(r.x,r.y,D,r.w,r.h,t,'puerta'));
 
   return {W,H,D,t,modo,parts:P,nRep,nPu,nCaj,nC,pos,vpos,hBase,nTr,
-          inst:($('gInst')?$('gInst').value:'piso')};
+          inst:gv('gInst','piso')};
+}
+/* Contexto de armado de un módulo, tomado de su cfg del diseñador. */
+function ctxDeCfg(cfg){
+  return {thk:cfg.t, armado:cfg.modo, gCajPos:cfg.pos, gCajV:cfg.vpos,
+          gHol:cfg.hp, gInst:cfg.inst, reps:cfg.reps, restos:cfg.restos};
+}
+/* Gira una pieza (caja alineada a ejes) 90° en el plano de planta X-Z.
+   La cámara isométrica ve X=ancho, Z=fondo. Rotar 90° intercambia ancho↔fondo.
+   nuevo x = z ;  nuevo z = spanX - (x + w) ; y (alto) no cambia. */
+function rot90(part, spanX){
+  return {x:part.z, y:part.y, z:spanX-(part.x+part.w),
+          w:part.d, h:part.h, d:part.w, tipo:part.tipo};
+}
+function shiftPart(p, dx, dz){ return {...p, x:p.x+dx, z:p.z+dz}; }
+
+/* Modelo del mueble en L/U compuesto de los módulos guardados. */
+function buildModelLU(){
+  if(modulos.length<2) return {err:'Se necesitan al menos 2 módulos para un mueble en L.'};
+  const sub=[];
+  for(const m of modulos){
+    const r=piezasDeConfig(m.cfg, '');           // piezas del módulo, sin prefijo
+    if(r.error) return {err:'Módulo '+m.lado+': '+r.error};
+    const mm=buildModel(r.piezas, ctxDeCfg(m.cfg));
+    if(mm.err) return {err:'Módulo '+m.lado+': '+mm.err};
+    sub.push({lado:m.lado, nombre:m.nombre, mm});
+  }
+  const A=sub.find(s=>s.lado==='A'), B=sub.find(s=>s.lado==='B'), C=sub.find(s=>s.lado==='C');
+  if(!A || !B) return {err:'Faltan los tramos A y B.'};
+  let parts=[];
+  // Tramo A: tal cual, a lo largo de X.
+  A.mm.parts.forEach(p=>parts.push({...p}));
+  const WA=A.mm.W, DA=A.mm.D;
+  // Tramo B: gira 90° y se ancla al extremo derecho de A, saliendo hacia +Z.
+  // Tras rotar con span = B.W, su ancho pasa a ir en Z; lo pegamos en x=WA-DA
+  // aprox. (comparte la esquina) y arrancando en z=DA para no pisar A.
+  const WB=B.mm.W;
+  B.mm.parts.forEach(p=>{ let q=rot90(p, WB); q=shiftPart(q, WA-B.mm.D, DA); parts.push(q); });
+  // Tramo C: paralelo a A (sin rotar), cerrando la U al fondo de B.
+  if(C){
+    const WC=C.mm.W, DC=C.mm.D;
+    const zC = DA + WB - DC;   // al final del recorrido de B
+    C.mm.parts.forEach(p=>parts.push(shiftPart({...p}, 0, zC)));
+  }
+  // Bounding para las cotas
+  const xs=parts.flatMap(p=>[p.x,p.x+p.w]), ys=parts.flatMap(p=>[p.y,p.y+p.h]), zs=parts.flatMap(p=>[p.z,p.z+p.d]);
+  const W=Math.max(...xs)-Math.min(...xs), H=Math.max(...ys)-Math.min(...ys), D=Math.max(...zs)-Math.min(...zs);
+  const forma = modulos.length>=3?'U':'L';
+  return {W,H,D,t:A.mm.t,modo:A.mm.modo,parts,esLU:true,forma,nMods:modulos.length,
+          nRep:0,nPu:0,nCaj:0,nC:1,pos:'',vpos:'',hBase:0,nTr:0,inst:A.mm.inst};
 }
 function shade(hex,f){
   const m=/^#?([\da-f]{2})([\da-f]{2})([\da-f]{2})$/i.exec(hex||'#d9c7a7');
@@ -1002,14 +1247,21 @@ function draw(res){
     <div class="stat"><span>Tapacanto</span><b>${f1(res.edge.mw)} m</b></div>
     ${cfg.price>0?`<div class="stat"><span>Costo tableros</span><b>$${fmt(res.sheets.length*cfg.price)}</b></div>`:''}
     ${cfg.eprice>0?`<div class="stat"><span>Costo canto</span><b>$${fmt(res.edge.cost)}</b></div>`:''}
-    ${(cfg.price>0||cfg.eprice>0)?`<div class="stat"><span>Total materiales</span><b>$${fmt(res.sheets.length*cfg.price+res.edge.cost)}</b></div>`:''}
+    ${(res.cub&&res.cub.price>0)?`<div class="stat"><span>Costo cubierta</span><b>$${fmt(res.cub.cost)}</b></div>`:''}
+    ${(cfg.price>0||cfg.eprice>0||(res.cub&&res.cub.price>0))?`<div class="stat"><span>Total materiales</span><b>$${fmt(res.sheets.length*cfg.price+res.edge.cost+((res.cub&&res.cub.cost)||0))}</b></div>`:''}
   </div>`;
 
   if($('showmodel').checked){
-    const m=buildModel();
-    html+=`<div class="sheet"><h3>Vista del mueble armado</h3>`;
+    const esLU = modulos.length>=2;
+    const m = esLU ? buildModelLU() : buildModel();
+    html+=`<div class="sheet"><h3>Vista del mueble armado${esLU?' — en '+(m.forma||'L'):''}</h3>`;
     if(m.err) html+=`<div class="meta" style="color:var(--warn)">${m.err}</div>`;
-    else{
+    else if(m.esLU){
+      html+=`<div class="meta">Mueble en <b>${m.forma}</b> · ${m.nMods} módulos · huella aprox. ${fmt(m.W)} × ${fmt(m.D)} mm en planta · alto ${fmt(m.H)} mm · espesor ${m.t} mm
+        <br>Módulos: ${modulos.map(mo=>mo.lado+' ('+esc(mo.nombre)+', '+fmt(mo.cfg.W)+'×'+fmt(mo.cfg.H)+'×'+fmt(mo.cfg.D)+')').join(' · ')}</div>
+        ${modelSvg(m,cfg.color)}
+        <div class="hint">Vista en planta L/U: el tramo B gira 90° en la esquina y, si hay tramo C, cierra la U. Las medidas de la esquina son aproximadas; el despiece de cada módulo es exacto.</div>`;
+    }else{
       const detalle=[m.nRep?m.nRep+' repisa'+(m.nRep>1?'s':''):'', m.nPu?m.nPu+' puerta'+(m.nPu>1?'s':''):'',
                      m.nCaj?(m.nCaj>1? m.nCaj+' cajones':'1 cajón'):''].filter(Boolean).join(' · ');
       const COLTXT={todas:'en todas las columnas',izquierda:'en la columna izquierda',
@@ -1023,6 +1275,23 @@ function draw(res){
     }
     html+=`<details><summary>Cómo se interpretó cada pieza</summary>${rolesUI()}
       <div class="hint">Vista referencial armada a partir del nombre de cada pieza. Si algo quedó en el lugar equivocado, corrige su rol aquí. Las puertas y frentes se dibujan translúcidos para ver el interior.</div></details></div>`;
+  }
+
+  if(res.cub && res.cub.on){
+    const c=res.cub, u=c.unidadTxt, LT=['A','B','C'];
+    const filas=[];
+    c.largos.forEach((L,i)=>filas.push(['Tramo '+LT[i], fmt(L)+' × '+fmt(c.F)+' mm', c.unit==='ml'?f1(L/1000)+' m':f1(L*c.F/1e6)+' m²']));
+    if(c.nEsq>0 && c.unit==='m2') filas.push(['Esquinas (−)', c.nEsq+' × '+fmt(c.F)+'×'+fmt(c.F)+' mm', '−'+f1(c.m2esq)+' m²']);
+    if(c.m2extra>0 && c.unit==='m2') filas.push(['Zócalo / faldón', 'alto '+fmt(c.faldH+c.faldF)+' mm', '+'+f1(c.m2extra)+' m²']);
+    html+=`<div class="sheet"><h3>Cubierta — ${c.matTxt} · ${c.formaTxt}</h3>
+      <div class="meta">${c.nTramos} tramo${c.nTramos>1?'s':''}${c.nEsq?' · '+c.nEsq+' esquina'+(c.nEsq>1?'s':'')+' ('+(c.esq==='inglete'?'inglete':'solape')+')':''} · fondo ${fmt(c.F)} · espesor ${fmt(c.T)} mm · ${f1(c.neta)} ${u} netos · ${f1(c.merma)} ${u} con ${c.waste}% de merma${c.price>0?` · $${fmt(c.cost)}`:''}</div>
+      <div class="scrollx"><table class="lst"><thead><tr><th>Concepto</th><th>Detalle</th><th>Cantidad</th></tr></thead><tbody>
+      ${filas.map(f=>`<tr><td>${f[0]}</td><td>${f[1]}</td><td>${f[2]}</td></tr>`).join('')}
+      <tr><td colspan="2" style="text-align:right"><b>Total neto</b></td><td><b>${f1(c.neta)} ${u}</b></td></tr>
+      <tr><td colspan="2" style="text-align:right"><b>A comprar (+${c.waste}%)</b></td><td><b>${f1(c.merma)} ${u}</b></td></tr>
+      ${c.price>0?`<tr><td colspan="2" style="text-align:right"><b>Costo</b></td><td><b>$${fmt(c.cost)}</b></td></tr>`:''}
+      </tbody></table></div>
+      <div class="hint">Cotización independiente del despiece: la cubierta no se corta del tablero. ${c.unit==='ml'?'Cobro por metro lineal (suma de tramos).':'Cobro por m² (esquinas contadas una vez).'}</div></div>`;
   }
 
   if(res.edge.rows.length){
@@ -1126,7 +1395,9 @@ function snapshot(){
   return {v:2, name:$('pname').value, cfg:c, rot:$('rot').value, bgrain:$('bgrain').value, armado:$('armado').value,
           ededuct:$('ededuct').checked, color:$('color').value, texmode:$('texmode').value, tex:texURL,
           roles:roleOverride, gen:GENF.reduce((o,f)=>(o[f]=$(f).value,o),{}),
-          repCols:repPorCuerpo(), restCols:restPorCuerpo(), pieces};
+          repCols:repPorCuerpo(), restCols:restPorCuerpo(), modulos,
+          cub:CUBF.reduce((o,f)=>(o[f]=$(f).value,o),{on:$('cubOn').checked, fald:$('cubFald').checked}),
+          pieces};
 }
 function restore(d){
   if(!d||!d.pieces){ alert('Archivo de proyecto no válido.'); return; }
@@ -1140,9 +1411,15 @@ function restore(d){
   if(d.repCols) document.querySelectorAll('#repCols .rc').forEach((i,k)=>{ if(d.repCols[k]!==undefined) i.value=d.repCols[k]; });
   if(d.restCols) document.querySelectorAll('#restCols .rs').forEach((i,k)=>{ if(d.restCols[k]!==undefined) i.value=d.restCols[k]; });
   $('ededuct').checked=!!d.ededuct;
+  if(d.cub){
+    $('cubOn').checked=!!d.cub.on; $('cubFald').checked=!!d.cub.fald;
+    CUBF.forEach(f=>{ if(d.cub[f]!==undefined) $(f).value=d.cub[f]; });
+  }
+  syncCub();
   if(d.color) $('color').value=d.color;
   if(d.texmode) $('texmode').value=d.texmode;
   texURL=d.tex||null; roleOverride=d.roles||{};
+  modulos = Array.isArray(d.modulos) ? d.modulos : []; renderModulos();
   pieces=(d.pieces||[]).map(p=>({ca:0,ch:0,...p})); render(); lastResult=null;
   $('out').innerHTML='<div class="empty">Proyecto cargado. Presiona <b>Cubicar y optimizar</b>.</div>';
 }
@@ -1271,6 +1548,15 @@ $('csv').onclick=()=>{
   rows.push([]); rows.push(['Tapacantos']); rows.push(['Pieza','Cant','Cantos_horiz','Cantos_vert','Metros']);
   lastResult.edge.rows.forEach(r=>rows.push([r.name,r.qty,r.ca,r.ch,r.m.toFixed(2).replace('.',',')]));
   rows.push(['TOTAL con merma','','','',lastResult.edge.mw.toFixed(2).replace('.',',')]);
+  const c=lastResult.cub;
+  if(c && c.on){
+    rows.push([]); rows.push(['Cubierta ('+c.formaTxt+')']);
+    rows.push(['Material','Forma','Fondo_mm','Espesor_mm','Unidad','Neto','Con_merma','Costo']);
+    rows.push([c.matTxt, c.formaTxt, Math.round(c.F), Math.round(c.T), c.unidadTxt,
+      c.neta.toFixed(2).replace('.',','), c.merma.toFixed(2).replace('.',','), Math.round(c.cost)]);
+    rows.push(['Tramo','Largo_mm']);
+    c.largos.forEach((L,i)=>rows.push([['A','B','C'][i], Math.round(L)]));
+  }
   dl('lista-de-cortes.csv', rows);
 };
 $('csv2').onclick=()=>{
@@ -1297,6 +1583,29 @@ $('gInst').addEventListener('change', ()=>{
   if(lastResult) draw(lastResult);
 });
 document.getElementById('repCols').addEventListener('input', ()=>{ if(lastResult) draw(lastResult); });
+
+/* ---- Cubierta: mostrar/ocultar y unidad automática según material ---- */
+function syncCub(){
+  $('cubBox').style.display = $('cubOn').checked ? '' : 'none';
+  $('cubFaldBox').style.display = ($('cubOn').checked && $('cubFald').checked) ? '' : 'none';
+  const f=$('cubForma').value, n = f==='u'?3 : f==='l'?2 : 1;
+  $('wrapLB').style.visibility = n>=2 ? 'visible' : 'hidden';
+  $('wrapLC').style.visibility = n>=3 ? 'visible' : 'hidden';
+  $('cubEsq').closest('div').style.visibility = n>=2 ? 'visible' : 'hidden';
+}
+$('cubOn').addEventListener('change', ()=>{ syncCub(); if(lastResult) draw(lastResult); });
+$('cubFald').addEventListener('change', ()=>{ syncCub(); if(lastResult) draw(lastResult); });
+$('cubForma').addEventListener('change', ()=>{ syncCub(); if(lastResult) draw(lastResult); });
+$('cubMat').addEventListener('change', ()=>{
+  // Al elegir material se sugiere su unidad habitual; el usuario puede cambiarla.
+  const opt=$('cubMat').selectedOptions[0];
+  if(opt && opt.dataset.u) $('cubUnit').value=opt.dataset.u;
+  if(lastResult) draw(lastResult);
+});
+['cubUnit','cubEsq','cubLA','cubLB','cubLC','cubF','cubT','cubPrice','cubWaste','cubFaldH','cubFaldF']
+  .forEach(id=>$(id).addEventListener('input',()=>{ if(lastResult) draw(lastResult); }));
+syncCub();
+
 renderRepCols(); renderRestCols();
 pieces = DEMO.map(p=>({...p})); render(); initCloud();
 </script>
